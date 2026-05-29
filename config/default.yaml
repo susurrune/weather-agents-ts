@@ -1,0 +1,70 @@
+# Weather Agents 默认配置
+
+# 工作空间 — 智能体生成内容的存放目录
+# "auto" = 自动选择剩余空间最大的盘符 (多盘时跳过 C:)
+workspace:
+  path: "auto"
+
+# 全局 LLM 设置
+llm:
+  default_model: "deepseek/deepseek-v4-flash"
+  temperature: 0.7
+  max_tokens: 16384
+  timeout: 120
+  max_retries: 2
+
+# 各 Agent 模型覆盖（不设置则用 default_model）
+agents:
+  fog:
+    model: null
+    specialty: "探索洞察"
+  rain:
+    model: null
+    specialty: "创造产出"
+  frost:
+    model: null
+    specialty: "精炼品质"
+  snow:
+    model: null
+    specialty: "架构规划"
+  dew:
+    model: null
+    specialty: "可靠守护"
+  fair:
+    model: null
+    specialty: "情感陪伴"
+
+# 消息总线设置
+bus:
+  max_retries: 3
+  retry_delay: 1.0
+
+# 记忆系统
+memory:
+  db_path: "~/.weather-agents/memory.db"
+  short_term_limit: 50
+
+# Web 服务
+web:
+  host: "127.0.0.1"
+  port: 8765
+
+# 插件
+plugins:
+  enabled: true
+  directories:
+    - "~/.weather-agents/plugins"
+
+# MCP (Model Context Protocol) 服务器配置
+mcp:
+  servers:
+    - name: "filesystem"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/root"]
+      enabled: false
+    - name: "github"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+      enabled: false

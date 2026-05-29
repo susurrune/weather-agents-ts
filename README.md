@@ -72,7 +72,8 @@ npm run build      # tsc -> dist/
 - [x] `core/circuitBreaker` · `core/cache` · `core/bus`（含测试）
 - [x] `core/tool` · `core/middleware`（ACL / 限流 / 审计 + 熔断 + 结果缓存）
 - [x] `core/schemas`（zod；保留 fence 剥离 + JSON 修复）
-- [ ] `core/config` · `core/skill`
+- [x] `core/config`（YAML + provider/model catalog + env 解析 + 0600 权限）
+- [x] `core/skill`（frontmatter 解析 + 触发词推导 + Claude 工具名归一）
 - [ ] `core/memory`（`node:sqlite`）· `core/llm`（AI SDK）
 - [ ] `core/agent` · 六个 agent · `core/router` · `core/pipelines`
 - [ ] `core/mcp` · `tools/builtin` · `core/factory`
