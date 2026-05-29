@@ -36,3 +36,23 @@ export function stableStringify(value: unknown): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * A minimal async mutex (mirrors asyncio.Lock). Serializes concurrent turns
+ * on a single agent so their short-term message mutations don't interleave.
+ */
+export class Mutex {
+  private tail: Promise<void> = Promise.resolve();
+
+  /** Acquire the lock; returns a release function. */
+  async acquire(): Promise<() => void> {
+    let release!: () => void;
+    const next = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const prev = this.tail;
+    this.tail = this.tail.then(() => next);
+    await prev;
+    return release;
+  }
+}

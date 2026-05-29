@@ -114,3 +114,20 @@ export {
   type RawCompletion,
   type RawStreamChunk,
 } from './llm.js';
+export {
+  BaseAgent,
+  AgentState,
+  TaskState,
+  Task,
+  type TaskInit,
+  type TaskResult,
+  type ChatStreamEvent,
+} from './agent.js';
+export { selectRelevantTools } from './toolRouter.js';
+export {
+  detectBestWorkspaceRoot,
+  resolveWorkspacePath,
+  initWorkspace,
+  formatBytes,
+} from './workspace.js';
+export { ratio, getCloseMatches } from './difflib.js';

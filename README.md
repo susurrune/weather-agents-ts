@@ -76,7 +76,8 @@ npm run build      # tsc -> dist/
 - [x] `core/skill`（frontmatter 解析 + 触发词推导 + Claude 工具名归一）
 - [x] `core/memory`（`node:sqlite`；会话 / 工具调用不变式 / 长期记忆召回）· `core/semantic`
 - [x] `core/llm`（Vercel AI SDK；回退链 / 重试 / 用量成本 / 预算 / 缓存；provider 调用经可注入 backend 隔离）
-- [ ] `core/agent` · 六个 agent · `core/router` · `core/pipelines`
+- [x] `core/agent` + 六个 agent 子类 + `core/toolRouter` + `core/workspace` + `core/difflib`
+- [ ] `core/pipelines` · `core/router` · `core/mcp` · `tools/builtin` · `core/factory`
 - [ ] `core/mcp` · `tools/builtin` · `core/factory`
 - [ ] `cli/main` · `web/`（语音服务）
 
