@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        /// # node:sqlite requires 22+
+        # node:sqlite requires 22+
         node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v4
