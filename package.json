@@ -36,7 +36,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prepare": "tsc -p tsconfig.json || echo 'build skipped (install deps first)'"
+    "prebuild": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build && npm run lint && npm test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.0",
