@@ -21,18 +21,17 @@ Weather Agents is a **local-first multi-agent CLI framework**. Six agents — ea
 This is the **TypeScript port** of the original Python project ([susurrune/weather-agents](https://github.com/susurrune/weather-agents)). It runs on Node.js 22+ and uses the Vercel AI SDK for multi-provider LLM access.
 
 ```bash
-# Install
-git clone https://github.com/susurrune/weather-agents-ts.git
-cd weather-agents-ts && npm install
+# Global install (recommended)
+npm install -g github:susurrune/weather-agents-ts
 
-# Chat with any agent — streaming, tool-aware
-npm run dev -- chat fog "Search the web for the latest TypeScript 5.7 features"
+# Now `wa` is available anywhere:
+wa chat fog "Search the web for the latest TypeScript 5.7 features"
 
 # Orchestrate a multi-agent task
-npm run dev -- task "Design and implement a URL shortener"
+wa task "Design and implement a URL shortener"
 
 # Interactive REPL
-npm run dev -- chat snow
+wa chat snow
 ```
 
 ---
@@ -60,10 +59,10 @@ npm run dev -- chat snow
 | **Fair** 晴 | ☼ | Companion | Emotional support, casual conversation — deliberately isolated from orchestration |
 
 ```bash
-npm run dev -- chat fog    "Compare FastAPI and Hono for a new API project"
-npm run dev -- chat rain   "Write a React hook for debounced search"
-npm run dev -- chat frost  "Review src/core/agent.ts for bugs"
-npm run dev -- chat dew    "Check which ports are listening on this machine"
+wa chat fog    "Compare FastAPI and Hono for a new API project"
+wa chat rain   "Write a React hook for debounced search"
+wa chat frost  "Review src/core/agent.ts for bugs"
+wa chat dew    "Check which ports are listening on this machine"
 ```
 
 ---
@@ -149,19 +148,28 @@ Models are specified as `<provider>/<model>` (e.g. `deepseek/deepseek-v4-pro`). 
 
 ```bash
 # Examples
-npm run dev -- chat fog -m openai/gpt-4.1-mini "explain closures"
-npm run dev -- chat rain -m anthropic/claude-sonnet-4-6 "write a sorting function"
-npm run dev -- chat snow -m deepseek/deepseek-v4-pro "plan a migration"
-npm run dev -- chat dew -m ollama/llama3 "check disk usage"
+wa chat fog -m openai/gpt-4.1-mini "explain closures"
+wa chat rain -m anthropic/claude-sonnet-4-6 "write a sorting function"
+wa chat snow -m deepseek/deepseek-v4-pro "plan a migration"
+wa chat dew -m ollama/llama3 "check disk usage"
 ```
 
 ---
 
-## Development
+## Install / Uninstall / Update
 
 ```bash
-npm install
-npm run dev          # tsx src/cli/main.ts
+# Global install (recommended — `wa` available anywhere)
+npm install -g github:susurrune/weather-agents-ts
+
+# Uninstall
+npm uninstall -g weather-agents
+
+# Update to latest
+npm uninstall -g weather-agents && npm install -g github:susurrune/weather-agents-ts
+```
+
+## Development
 npm test             # vitest (104 tests)
 npm run lint         # eslint
 npm run typecheck    # tsc --noEmit
