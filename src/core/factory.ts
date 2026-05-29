@@ -10,6 +10,8 @@ import { classify, pickAgentForKey, type Mode } from './router.js';
 import { matchPipeline, buildTasksFromPipeline } from './pipelines.js';
 import { getLogger } from './logger.js';
 import { createDelegateTool } from '../tools/delegate.js';
+import { registerBuiltinTools } from '../tools/builtin.js';
+import { registerAllSkills } from '../skills/loader.js';
 
 import { FogAgent } from '../agents/fog.js';
 import { RainAgent } from '../agents/rain.js';
@@ -18,8 +20,7 @@ import { SnowAgent } from '../agents/snow.js';
 import { DewAgent } from '../agents/dew.js';
 import { FairAgent } from '../agents/fair.js';
 
-const log = getLogger('factory');
-void log;
+const _log = getLogger('factory');
 
 const AGENT_CLASSES: Record<string, typeof FogAgent> = {
   fog: FogAgent,
@@ -50,6 +51,8 @@ export function createSystemContext(): SystemContext {
   const bus = new MessageBus();
   const baseToolRegistry = new ToolRegistry();
   const baseSkillRegistry = new SkillRegistry();
+  registerBuiltinTools(baseToolRegistry);
+  registerAllSkills(baseSkillRegistry);
   const llm = new LLMClient(config, baseToolRegistry);
 
   const agents: Record<string, BaseAgent> = {};

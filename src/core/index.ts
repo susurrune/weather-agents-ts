@@ -131,3 +131,11 @@ export {
   formatBytes,
 } from './workspace.js';
 export { ratio, getCloseMatches } from './difflib.js';
+export { registerBuiltinTools } from '../tools/builtin.js';
+export { registerAllSkills } from '../skills/loader.js';
+export {
+  createSystemContext,
+  orchestrateTask,
+  AGENT_CLASSES,
+  type SystemContext,
+} from './factory.js';
