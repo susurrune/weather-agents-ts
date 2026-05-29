@@ -95,3 +95,22 @@ export {
 } from './skill.js';
 export { SemanticScorer, getScorer } from './semantic.js';
 export { Memory, type Message, type MessageDict } from './memory.js';
+export {
+  LLMClient,
+  AiSdkBackend,
+  splitProvider,
+  isAnthropicModel,
+  estimateTokens,
+  estimateCost,
+  isTransientError,
+  formatUserFacingError,
+  FALLBACK_CHAINS,
+  type LLMResponse,
+  type StreamEvent,
+  type StreamEventType,
+  type ToolCall,
+  type CompletionBackend,
+  type CompletionRequest,
+  type RawCompletion,
+  type RawStreamChunk,
+} from './llm.js';
