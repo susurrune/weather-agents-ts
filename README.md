@@ -70,7 +70,9 @@ npm run build      # tsc -> dist/
 - [x] 工具链（tsconfig / eslint / prettier / vitest / CI）
 - [x] `core/constants` · `core/icons` · `core/logger`
 - [x] `core/circuitBreaker` · `core/cache` · `core/bus`（含测试）
-- [ ] `core/config` · `core/tool` · `core/schemas` · `core/skill`
+- [x] `core/tool` · `core/middleware`（ACL / 限流 / 审计 + 熔断 + 结果缓存）
+- [x] `core/schemas`（zod；保留 fence 剥离 + JSON 修复）
+- [ ] `core/config` · `core/skill`
 - [ ] `core/memory`（`node:sqlite`）· `core/llm`（AI SDK）
 - [ ] `core/agent` · 六个 agent · `core/router` · `core/pipelines`
 - [ ] `core/mcp` · `tools/builtin` · `core/factory`
