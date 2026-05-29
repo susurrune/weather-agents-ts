@@ -74,7 +74,8 @@ npm run build      # tsc -> dist/
 - [x] `core/schemas`（zod；保留 fence 剥离 + JSON 修复）
 - [x] `core/config`（YAML + provider/model catalog + env 解析 + 0600 权限）
 - [x] `core/skill`（frontmatter 解析 + 触发词推导 + Claude 工具名归一）
-- [ ] `core/memory`（`node:sqlite`）· `core/llm`（AI SDK）
+- [x] `core/memory`（`node:sqlite`；会话 / 工具调用不变式 / 长期记忆召回）· `core/semantic`
+- [ ] `core/llm`（AI SDK）
 - [ ] `core/agent` · 六个 agent · `core/router` · `core/pipelines`
 - [ ] `core/mcp` · `tools/builtin` · `core/factory`
 - [ ] `cli/main` · `web/`（语音服务）

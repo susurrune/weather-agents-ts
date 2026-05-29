@@ -93,3 +93,5 @@ export {
   type SkillInit,
   type SkillHandler,
 } from './skill.js';
+export { SemanticScorer, getScorer } from './semantic.js';
+export { Memory, type Message, type MessageDict } from './memory.js';
