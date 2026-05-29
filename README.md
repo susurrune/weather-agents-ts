@@ -78,7 +78,8 @@ npm run build      # tsc -> dist/
 - [x] `core/llm`（Vercel AI SDK；回退链 / 重试 / 用量成本 / 预算 / 缓存；provider 调用经可注入 backend 隔离）
 - [x] `core/agent` + 六个 agent 子类 + `core/toolRouter` + `core/workspace` + `core/difflib`
 - [x] `core/pipelines`（规则匹配预定义协作模板）
-- [ ] `core/router` · `core/mcp` · `tools/builtin` · `core/factory`
+- [x] `core/router` · `tools/delegate` · `core/factory` · `cli/main`（最小可用 CLI）
+- [ ] `core/mcp` · `tools/builtin`（完整工具处理器）· `web/` · 完整 CLI 功能
 - [ ] `core/mcp` · `tools/builtin` · `core/factory`
 - [ ] `cli/main` · `web/`（语音服务）
 
