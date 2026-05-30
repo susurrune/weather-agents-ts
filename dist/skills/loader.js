@@ -33,4 +33,3 @@ export function registerAllSkills(reg) {
         }
     }
 }
-//# sourceMappingURL=loader.js.map

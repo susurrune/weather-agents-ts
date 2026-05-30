@@ -25,4 +25,3 @@ export class FrostAgent extends BaseAgent {
 - 用 delegate_to 委托 rain 按建议修改、dew 验证修复后的部署`;
     static agentSkillNames = ['code_reviewer', 'security_auditor', 'performance_checker'];
 }
-//# sourceMappingURL=frost.js.map

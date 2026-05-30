@@ -51,4 +51,3 @@ export function svgPath(name) {
 export function iconText(name) {
     return AGENT_EMOJI[name] ?? name;
 }
-//# sourceMappingURL=icons.js.map

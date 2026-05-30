@@ -172,4 +172,3 @@ Like snow — silent but all-covering. Clear structure, thorough consideration.`
         return tasks;
     }
 }
-//# sourceMappingURL=snow.js.map

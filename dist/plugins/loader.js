@@ -36,4 +36,3 @@ export function loadPlugins(reg, directories) {
         }
     }
 }
-//# sourceMappingURL=loader.js.map

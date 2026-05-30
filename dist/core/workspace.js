@@ -94,4 +94,3 @@ export function formatBytes(n) {
     }
     return `${val.toFixed(1)} PB`;
 }
-//# sourceMappingURL=workspace.js.map

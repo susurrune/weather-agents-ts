@@ -119,4 +119,3 @@ export class MessageBus {
         return events.slice(-limit);
     }
 }
-//# sourceMappingURL=bus.js.map

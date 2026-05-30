@@ -128,4 +128,3 @@ export function selectRelevantTools(registry, candidateNames, query, opts = {}) 
     const picked = scored.slice(0, topK).map(([, n]) => n);
     return [...mustPresent, ...picked];
 }
-//# sourceMappingURL=toolRouter.js.map

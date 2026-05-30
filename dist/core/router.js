@@ -172,4 +172,3 @@ export function pickAgentForKey(goal, available) {
         return 'rain';
     return available.values().next().value ?? 'rain';
 }
-//# sourceMappingURL=router.js.map

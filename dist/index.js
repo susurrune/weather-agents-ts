@@ -5,4 +5,3 @@
  * `cli/main.ts` and is exposed via the `wa` bin.
  */
 export * from './core/index.js';
-//# sourceMappingURL=index.js.map

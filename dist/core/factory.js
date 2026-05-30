@@ -435,4 +435,3 @@ export async function orchestrateTask(ctx, goal) {
     const { summary } = await runOrchestration(goal, ctx.agentMap, snow);
     return { mode: 'orchestrate', result: summary };
 }
-//# sourceMappingURL=factory.js.map

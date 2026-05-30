@@ -357,4 +357,3 @@ export class MCPManager {
         this.toolRegistry.register(tool);
     }
 }
-//# sourceMappingURL=mcp.js.map

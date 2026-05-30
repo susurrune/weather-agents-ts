@@ -66,4 +66,3 @@ export function ensureSelfSignedCert(ips) {
     }
     return [certPath, keyPath];
 }
-//# sourceMappingURL=certs.js.map

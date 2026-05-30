@@ -302,4 +302,3 @@ export class ToolRegistry {
 }
 // Global tool registry
 export const globalRegistry = new ToolRegistry();
-//# sourceMappingURL=tool.js.map

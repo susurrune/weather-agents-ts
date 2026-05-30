@@ -309,4 +309,3 @@ export class SkillRegistry {
 }
 // Global skill registry
 export const globalSkillRegistry = new SkillRegistry();
-//# sourceMappingURL=skill.js.map

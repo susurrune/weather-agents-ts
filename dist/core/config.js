@@ -610,4 +610,3 @@ export function deleteConfig(key) {
     }
     return [false, `unknown config key: ${key}`];
 }
-//# sourceMappingURL=config.js.map

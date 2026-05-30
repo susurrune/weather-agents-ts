@@ -20,4 +20,3 @@ export class FogAgent extends BaseAgent {
 - 调研完成后，产出结构化报告、markdown 表格或总结要点`;
     static agentSkillNames = ['web_research', 'code_analysis', 'document_analysis'];
 }
-//# sourceMappingURL=fog.js.map

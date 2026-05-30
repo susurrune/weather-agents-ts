@@ -141,4 +141,3 @@ function nextId() {
     _idCounter = (_idCounter + 1) & 0xffff;
     return _idCounter.toString(16).padStart(4, '0');
 }
-//# sourceMappingURL=delegate.js.map

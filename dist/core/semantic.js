@@ -92,4 +92,3 @@ export function getScorer() {
     }
     return _scorer;
 }
-//# sourceMappingURL=semantic.js.map

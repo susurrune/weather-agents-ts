@@ -208,4 +208,3 @@ export function setMiddlewareChain(chain) {
 export function getMiddlewareChain() {
     return _globalChain;
 }
-//# sourceMappingURL=middleware.js.map

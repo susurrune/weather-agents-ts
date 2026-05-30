@@ -138,6 +138,14 @@ function ensureDefaultSetup(): void {
     return;
   }
   _minLevel = 'info';
+  // Under test (vitest sets VITEST, or NODE_ENV=test), use a null sink so a
+  // bare `getLogger()` import doesn't create ~/.weather-agents/wa.log on the
+  // dev/CI machine.
+  if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+    _logFilePath = null;
+    _configured = true;
+    return;
+  }
   const logPath = join(homedir(), '.weather-agents', 'wa.log');
   try {
     mkdirSync(dirname(logPath), { recursive: true });

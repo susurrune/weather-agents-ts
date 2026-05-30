@@ -872,4 +872,3 @@ export function registerBuiltinTools(reg) {
     for (const t of tools)
         reg.register(t);
 }
-//# sourceMappingURL=builtin.js.map

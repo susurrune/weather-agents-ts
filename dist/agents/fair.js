@@ -22,4 +22,3 @@ export class FairAgent extends BaseAgent {
 - 始终诚实：你不是医生或咨询师，你只是朋友`;
     static agentSkillNames = ['emotional_companion', 'self_evolve'];
 }
-//# sourceMappingURL=fair.js.map

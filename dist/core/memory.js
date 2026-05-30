@@ -680,4 +680,3 @@ export class Memory {
         return { total, categories };
     }
 }
-//# sourceMappingURL=memory.js.map

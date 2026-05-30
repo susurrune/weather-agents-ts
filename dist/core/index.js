@@ -27,4 +27,3 @@ export { ratio, getCloseMatches } from './difflib.js';
 export { registerBuiltinTools } from '../tools/builtin.js';
 export { registerAllSkills } from '../skills/loader.js';
 export { createSystemContext, orchestrateTask, runOrchestration, isThinContent, AGENT_CLASSES, } from './factory.js';
-//# sourceMappingURL=index.js.map

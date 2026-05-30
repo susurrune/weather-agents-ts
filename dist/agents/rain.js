@@ -21,4 +21,3 @@ export class RainAgent extends BaseAgent {
 - 接到 snow 规划的任务时，用你的特长完整执行`;
     static agentSkillNames = ['code_generator', 'content_writer', 'data_transformer'];
 }
-//# sourceMappingURL=rain.js.map

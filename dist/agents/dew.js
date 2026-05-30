@@ -22,4 +22,3 @@ export class DewAgent extends BaseAgent {
 - 用 delegate_to 委托 fog 研究技术选型、frost 审计配置安全`;
     static agentSkillNames = ['sys_operator', 'ci_cd_manager', 'api_integrator'];
 }
-//# sourceMappingURL=dew.js.map

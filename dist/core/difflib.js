@@ -60,4 +60,3 @@ export function getCloseMatches(word, possibilities, n = 3, cutoff = 0.6) {
     scored.sort((x, y) => y[0] - x[0]);
     return scored.slice(0, n).map(([, p]) => p);
 }
-//# sourceMappingURL=difflib.js.map
