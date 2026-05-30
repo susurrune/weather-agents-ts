@@ -11,8 +11,9 @@ import {
   copyFileSync,
   unlinkSync,
   rmdirSync,
+  realpathSync,
 } from 'node:fs';
-import { basename, dirname, join, normalize, resolve, sep } from 'node:path';
+import { basename, dirname, join, normalize, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
 import { URL } from 'node:url';
@@ -97,25 +98,33 @@ const BLOCKED_COMMANDS = new Set([
 
 // ── Path protection ───────────────────────────────────────────────────────────
 
+/** Normalize any path to lowercase forward-slash form for platform-independent matching. */
+function toPosix(p: string): string {
+  return p.replace(/\\/g, '/').toLowerCase();
+}
+
+const WRITE_PROTECT_EXACT_POSIX = new Set([...WRITE_PROTECT_EXACT].map(toPosix));
+const WRITE_PROTECT_ROOTS_POSIX = WRITE_PROTECT_ROOTS.map(toPosix);
+
 export function isProtectedPath(path: string): boolean {
   const expanded = path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
-  const candidates = [normalize(expanded).toLowerCase()];
+  // Compare in forward-slash form so checks are identical on POSIX and Windows
+  // (e.g. a Windows root like c:\windows still matches when this runs on Linux,
+  // and bare "/" matches because we don't strip it down to "").
+  const candidates = [toPosix(normalize(expanded))];
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const real = require('fs').realpathSync.native(expanded).toLowerCase();
-    if (real !== candidates[0]) candidates.push(real);
+    candidates.push(toPosix(realpathSync.native(expanded)));
   } catch {
-    /* ignore */
+    /* path may not exist yet — lexical check still applies */
   }
 
-  for (const resolved of candidates) {
-    const normalized = resolved.replace(/[/\\]$/, '');
-    if (WRITE_PROTECT_EXACT.has(normalized)) return true;
-    if (normalized.length <= 3 && (normalized.endsWith(':') || normalized.endsWith(':\\')))
-      return true;
-    for (const root of WRITE_PROTECT_ROOTS) {
-      const r = normalize(root).toLowerCase();
-      if (normalized === r || normalized.startsWith(r + sep.toLowerCase())) return true;
+  for (const cand of candidates) {
+    const stripped = cand.replace(/\/+$/, '') || '/';
+    if (WRITE_PROTECT_EXACT_POSIX.has(cand) || WRITE_PROTECT_EXACT_POSIX.has(stripped)) return true;
+    // Drive root: "c:" or "c:/"
+    if (/^[a-z]:\/?$/.test(stripped)) return true;
+    for (const root of WRITE_PROTECT_ROOTS_POSIX) {
+      if (stripped === root || stripped.startsWith(root + '/')) return true;
     }
   }
   return false;
