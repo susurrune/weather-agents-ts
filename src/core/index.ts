@@ -136,6 +136,9 @@ export { registerAllSkills } from '../skills/loader.js';
 export {
   createSystemContext,
   orchestrateTask,
+  runOrchestration,
+  isThinContent,
   AGENT_CLASSES,
   type SystemContext,
+  type TaskExecutionResult,
 } from './factory.js';

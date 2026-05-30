@@ -1593,7 +1593,7 @@ export class BaseAgent {
     return msgs;
   }
 
-  private async llmLoop(
+  protected async llmLoop(
     onStatus?: ((s: string) => void) | null,
     ephemeral = false,
   ): Promise<LLMResponse> {

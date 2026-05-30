@@ -5,7 +5,7 @@
  */
 import { type MessageBus } from './bus.js';
 import { type AppConfig } from './config.js';
-import { type LLMClient } from './llm.js';
+import { type LLMClient, type LLMResponse } from './llm.js';
 import { Memory } from './memory.js';
 import { SkillRegistry } from './skill.js';
 import { type ToolRegistry } from './tool.js';
@@ -151,7 +151,7 @@ export declare class BaseAgent {
     private extractFactsAsync;
     private parseExtractedFacts;
     private messagesWithRecall;
-    private llmLoop;
+    protected llmLoop(onStatus?: ((s: string) => void) | null, ephemeral?: boolean): Promise<LLMResponse>;
     executeTask(task: Task, onStatus?: ((s: string) => void) | null): Promise<TaskResult>;
     private executeTaskImpl;
     private checkToolApproval;

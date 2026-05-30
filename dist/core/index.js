@@ -26,5 +26,5 @@ export { detectBestWorkspaceRoot, resolveWorkspacePath, initWorkspace, formatByt
 export { ratio, getCloseMatches } from './difflib.js';
 export { registerBuiltinTools } from '../tools/builtin.js';
 export { registerAllSkills } from '../skills/loader.js';
-export { createSystemContext, orchestrateTask, AGENT_CLASSES, } from './factory.js';
+export { createSystemContext, orchestrateTask, runOrchestration, isThinContent, AGENT_CLASSES, } from './factory.js';
 //# sourceMappingURL=index.js.map
