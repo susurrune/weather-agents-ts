@@ -40,9 +40,17 @@ describe('validateUrl (SSRF guard)', () => {
     expect(validateUrl('http://224.0.0.1/')).toContain('multicast');
     expect(validateUrl('http://0.0.0.0/')).toContain('private'); // unspecified
   });
-  it('allows public URLs', () => {
+  it('rejects non-dotted IPv4 forms that resolve to loopback (inet_aton bypass)', () => {
+    expect(validateUrl('http://2130706433/')).toContain('private/loopback'); // decimal 127.0.0.1
+    expect(validateUrl('http://0x7f000001/')).toContain('private/loopback'); // hex
+    expect(validateUrl('http://127.1/')).toContain('private/loopback'); // short form
+    expect(validateUrl('http://0177.0.0.1/')).toContain('private/loopback'); // octal
+    expect(validateUrl('http://0/')).toContain('private/loopback'); // 0.0.0.0
+  });
+  it('allows public URLs (incl. public decimal form)', () => {
     expect(validateUrl('https://example.com/path')).toBeNull();
     expect(validateUrl('http://8.8.8.8/')).toBeNull();
+    expect(validateUrl('http://example.org/')).toBeNull();
   });
 });
 
@@ -144,6 +152,13 @@ describe('shell_exec safety', () => {
   it('runs a safe command', async () => {
     const out = await tool('shell_exec').execute({ command: 'node --version' });
     expect(out).toMatch(/v\d+\./);
+  });
+  it('does NOT interpret redirects as shell (no-shell exec)', async () => {
+    // With execFile(shell:false), ">" is a literal arg to node, not a redirect,
+    // so no file is created — the redirect injection hole is closed.
+    const target = join(dir, 'pwned.txt');
+    await tool('shell_exec').execute({ command: `node --version > ${target}` });
+    expect(existsSync(target)).toBe(false);
   });
 });
 

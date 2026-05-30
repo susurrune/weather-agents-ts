@@ -15,8 +15,11 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, normalize, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { execSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { URL } from 'node:url';
+
+const execFileAsync = promisify(execFile);
 
 import { TASK_DONE_SENTINEL } from '../core/constants.js';
 import { Tool, ToolRegistry } from '../core/tool.js';
@@ -159,32 +162,65 @@ export function validateUrl(url: string): string | null {
   if (['localhost', 'ip6-localhost', 'metadata.google.internal'].includes(host)) {
     return `Error: refusing to reach internal host '${host}' (set WA_ALLOW_PRIVATE_NET=1 to override)`;
   }
-  // IPv4 check: catch private/loopback/link-local/unspecified/multicast.
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
-  if (
-    ipv4 &&
-    ipv4[1] !== undefined &&
-    ipv4[2] !== undefined &&
-    ipv4[3] !== undefined &&
-    ipv4[4] !== undefined
-  ) {
-    const o1 = Number(ipv4[1]);
-    const o2 = Number(ipv4[2]);
-    const o3 = Number(ipv4[3]);
-    const o4 = Number(ipv4[4]);
-    if ([o1, o2, o3, o4].every((o) => o >= 0 && o <= 255)) {
-      if (o1 === 0 || o1 === 127 || o1 === 10)
-        return `Error: refusing to reach private/loopback IP ${host}`;
-      if (o1 === 172 && o2 >= 16 && o2 <= 31)
-        return `Error: refusing to reach private/loopback IP ${host}`;
-      if (o1 === 192 && o2 === 168) return `Error: refusing to reach private/loopback IP ${host}`;
-      if (o1 === 169 && o2 === 254) return `Error: refusing to reach link-local IP ${host}`;
-      if (o1 >= 224) return `Error: refusing to reach multicast/reserved IP ${host}`;
-    }
+  // IPv4 check — normalize first so decimal/hex/octal/short forms can't bypass
+  // the private-range filter (2130706433, 0x7f000001, 127.1, 0177.0.0.1, 0 all
+  // resolve to 127.x). Mirrors Python's inet_aton-based hardening.
+  const octets = parseIpv4Octets(host);
+  if (octets) {
+    const [o1, o2] = octets;
+    if (o1 === 0 || o1 === 127 || o1 === 10)
+      return `Error: refusing to reach private/loopback IP ${host}`;
+    if (o1 === 172 && o2 >= 16 && o2 <= 31)
+      return `Error: refusing to reach private/loopback IP ${host}`;
+    if (o1 === 192 && o2 === 168) return `Error: refusing to reach private/loopback IP ${host}`;
+    if (o1 === 169 && o2 === 254) return `Error: refusing to reach link-local IP ${host}`;
+    if (o1 >= 224) return `Error: refusing to reach multicast/reserved IP ${host}`;
   }
   // IPv6 loopback
   if (host === '::1' || host === '0:0:0:0:0:0:0:1') return `Error: refusing to reach IPv6 loopback`;
   return null;
+}
+
+/**
+ * Parse `host` as an IPv4 address using inet_aton semantics — accepts dotted
+ * quad plus the short / hex / octal / decimal forms a browser or libc would
+ * resolve. Returns the 4 octets, or null if `host` isn't a numeric IPv4 form
+ * (i.e. it's a real hostname).
+ */
+function parseIpv4Octets(host: string): [number, number, number, number] | null {
+  const parts = host.split('.');
+  if (parts.length === 0 || parts.length > 4) return null;
+  const nums: number[] = [];
+  for (const p of parts) {
+    if (p === '') return null;
+    let n: number;
+    if (/^0x[0-9a-f]+$/i.test(p)) n = parseInt(p, 16);
+    else if (/^0[0-7]+$/.test(p)) n = parseInt(p, 8);
+    else if (/^[0-9]+$/.test(p)) n = parseInt(p, 10);
+    else return null; // contains non-numeric → hostname, not an IP literal
+    if (!Number.isFinite(n) || n < 0) return null;
+    nums.push(n);
+  }
+  let value: number;
+  switch (nums.length) {
+    case 1:
+      if (nums[0]! > 0xffffffff) return null;
+      value = nums[0]!;
+      break;
+    case 2:
+      if (nums[0]! > 0xff || nums[1]! > 0xffffff) return null;
+      value = nums[0]! * 2 ** 24 + nums[1]!;
+      break;
+    case 3:
+      if (nums[0]! > 0xff || nums[1]! > 0xff || nums[2]! > 0xffff) return null;
+      value = nums[0]! * 2 ** 24 + nums[1]! * 2 ** 16 + nums[2]!;
+      break;
+    default:
+      if (nums.some((x) => x > 0xff)) return null;
+      value = nums[0]! * 2 ** 24 + nums[1]! * 2 ** 16 + nums[2]! * 2 ** 8 + nums[3]!;
+  }
+  value = value >>> 0;
+  return [(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff];
 }
 
 // ── HTTP tools ────────────────────────────────────────────────────────────────
@@ -473,17 +509,25 @@ async function _shellExec(command: string, timeout = 30, cwd = ''): Promise<stri
   const workDir = cwd ? expandPath(cwd) : undefined;
   if (cwd && !existsSync(workDir!)) return `Error: cwd is not a directory: ${cwd}`;
   try {
-    const stdout = execSync(args.join(' '), {
+    // execFile (shell:false) execs the program directly with an argv array —
+    // no shell, so redirects/globs/pipes in args are literal, not interpreted.
+    // This matches Python's create_subprocess_exec and closes the redirect/
+    // glob injection hole that execSync(string) had.
+    const { stdout } = await execFileAsync(args[0]!, args.slice(1), {
       timeout: timeout * 1000,
       cwd: workDir,
       encoding: 'utf-8',
       maxBuffer: 2_000_000,
+      shell: false,
     });
     return `[cwd: ${workDir || process.cwd()}]\n${truncate(stdout, MAX_SHELL_OUTPUT, 'stdout')}`;
   } catch (e: any) {
-    if (e.killed || e.code === 'ETIMEDOUT') return `Command timed out after ${timeout}s`;
+    if (e.killed || e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT')
+      return `Command timed out after ${timeout}s`;
+    if (e.code === 'ENOENT') return `Command not found: ${args[0]}`;
     const stderr = e.stderr || e.message || '';
-    return `[exit code: ${e.status || 1}]\n${truncate(String(stderr), 5000, 'stderr')}`;
+    const exit = typeof e.code === 'number' ? e.code : 1;
+    return `[exit code: ${exit}]\n${truncate(String(stderr), 5000, 'stderr')}`;
   }
 }
 
