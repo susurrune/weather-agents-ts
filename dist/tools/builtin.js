@@ -77,7 +77,7 @@ const BLOCKED_COMMANDS = new Set([
     'tftp',
 ]);
 // ── Path protection ───────────────────────────────────────────────────────────
-function isProtectedPath(path) {
+export function isProtectedPath(path) {
     const expanded = path.startsWith('~') ? join(homedir(), path.slice(1)) : path;
     const candidates = [normalize(expanded).toLowerCase()];
     try {
@@ -113,7 +113,7 @@ function expandPath(p) {
 }
 // ── SSRF guard ────────────────────────────────────────────────────────────────
 const ALLOW_PRIVATE_NET = process.env.WA_ALLOW_PRIVATE_NET === '1';
-function validateUrl(url) {
+export function validateUrl(url) {
     let parsed;
     try {
         parsed = new URL(url);
@@ -223,9 +223,11 @@ async function _readFile(path, offset = 0, limit = 0) {
     }
 }
 async function _writeFile(path, content) {
+    // Check the raw (un-resolved) path: resolve() would prepend a drive letter
+    // on Windows ("/etc/x" → "D:\etc\x"), defeating the "/etc" root match.
+    if (isProtectedPath(path))
+        return `Error: refusing to write to protected path: ${path}`;
     const p = expandPath(path);
-    if (isProtectedPath(p))
-        return `Error: refusing to write to protected path: ${p}`;
     const existed = existsSync(p);
     const oldSize = existed ? statSync(p).size : 0;
     try {
@@ -241,9 +243,9 @@ async function _writeFile(path, content) {
     }
 }
 async function _editFile(path, oldText, newText, count = 1) {
+    if (isProtectedPath(path))
+        return `Error: refusing to edit protected path: ${path}`;
     const p = expandPath(path);
-    if (isProtectedPath(p))
-        return `Error: refusing to edit protected path: ${p}`;
     try {
         let content = readFileSync(p, 'utf-8');
         if (!content.includes(oldText))
@@ -402,10 +404,10 @@ async function _grep(pattern, directory = '.', caseSensitive = false) {
     return results.length ? results.join('\n') : 'No matches found.';
 }
 async function _moveFile(src, dst) {
+    if (isProtectedPath(src) || isProtectedPath(dst))
+        return 'Error: refusing to move to/from a protected path.';
     const s = expandPath(src);
     const d = expandPath(dst);
-    if (isProtectedPath(s) || isProtectedPath(d))
-        return 'Error: refusing to move to/from a protected path.';
     try {
         mkdirSync(dirname(d), { recursive: true });
         renameSync(s, d);
@@ -416,10 +418,10 @@ async function _moveFile(src, dst) {
     }
 }
 async function _copyFile(src, dst) {
+    if (isProtectedPath(dst))
+        return 'Error: refusing to copy to a protected path.';
     const s = expandPath(src);
     const d = expandPath(dst);
-    if (isProtectedPath(d))
-        return 'Error: refusing to copy to a protected path.';
     try {
         mkdirSync(dirname(d), { recursive: true });
         copyFileSync(s, d);
@@ -430,9 +432,9 @@ async function _copyFile(src, dst) {
     }
 }
 async function _deleteFile(path) {
-    const p = expandPath(path);
-    if (isProtectedPath(p))
+    if (isProtectedPath(path))
         return 'Error: refusing to delete a protected path.';
+    const p = expandPath(path);
     try {
         if (!existsSync(p))
             return `Error: File not found: ${p}`;
