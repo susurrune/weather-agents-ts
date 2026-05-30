@@ -413,10 +413,10 @@ export async function runOrchestration(goal, agentMap, snow, opts = {}) {
 /** Classify goal and dispatch: direct → no LLM, single → one agent, orchestrate → full engine. */
 export async function orchestrateTask(ctx, goal) {
     const mode = classify(goal);
-    if (mode === 'direct') {
-        return { mode, result: '' }; // caller handles greetings/questions directly
-    }
-    if (mode === 'single' && !matchPipeline(goal)) {
+    // direct + single (without a pipeline match) both resolve to one agent.
+    // For `direct` we still answer via the best-matched agent rather than
+    // returning empty, so `wa task "你好"` produces a real reply.
+    if ((mode === 'direct' || mode === 'single') && !matchPipeline(goal)) {
         const available = new Set(Object.keys(ctx.agentMap));
         const agentName = pickAgentForKey(goal, available);
         const agent = ctx.agentMap[agentName];
