@@ -98,6 +98,7 @@ export { Memory, type Message, type MessageDict } from './memory.js';
 export {
   LLMClient,
   AiSdkBackend,
+  toCoreMessages,
   splitProvider,
   isAnthropicModel,
   estimateTokens,

@@ -7,6 +7,7 @@ import {
   estimateCost,
   isTransientError,
   formatUserFacingError,
+  toCoreMessages,
   type CompletionBackend,
   type CompletionRequest,
   type RawCompletion,
@@ -159,6 +160,84 @@ describe('LLMClient.streamWithTools', () => {
     expect(types).toEqual(['content', 'content', 'tool_call', 'done']);
     expect(events.find((e) => e.type === 'tool_call')!.toolCall!.function.name).toBe('read_file');
     expect(events.at(-1)!.usage!.prompt_tokens).toBe(20);
+  });
+});
+
+describe('toCoreMessages (OpenAI → AI SDK CoreMessage)', () => {
+  it('passes system/user through as plain content', () => {
+    const out = toCoreMessages([
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'hi' },
+    ]);
+    expect(out).toEqual([
+      { role: 'system', content: 'sys' },
+      { role: 'user', content: 'hi' },
+    ]);
+  });
+
+  it('plain assistant message stays a string', () => {
+    expect(toCoreMessages([{ role: 'assistant', content: 'ok' }])).toEqual([
+      { role: 'assistant', content: 'ok' },
+    ]);
+  });
+
+  it('assistant tool_calls become tool-call parts (args parsed)', () => {
+    const out = toCoreMessages([
+      {
+        role: 'assistant',
+        content: 'let me check',
+        tool_calls: [
+          {
+            id: 'c1',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{"path":"a"}' },
+          },
+        ],
+      },
+    ]);
+    expect(out[0]!.role).toBe('assistant');
+    const parts = out[0]!.content as any[];
+    expect(parts[0]).toEqual({ type: 'text', text: 'let me check' });
+    expect(parts[1]).toEqual({
+      type: 'tool-call',
+      toolCallId: 'c1',
+      toolName: 'read_file',
+      args: { path: 'a' },
+    });
+  });
+
+  it('tool result becomes a tool-result part with toolName recovered by id', () => {
+    const out = toCoreMessages([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          { id: 'c1', type: 'function', function: { name: 'read_file', arguments: '{}' } },
+        ],
+      },
+      { role: 'tool', content: 'file body', tool_call_id: 'c1' },
+    ]);
+    const toolMsg = out[1]!;
+    expect(toolMsg.role).toBe('tool');
+    expect((toolMsg.content as any[])[0]).toEqual({
+      type: 'tool-result',
+      toolCallId: 'c1',
+      toolName: 'read_file',
+      result: 'file body',
+    });
+  });
+
+  it('handles malformed tool_call arguments without throwing', () => {
+    const out = toCoreMessages([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          { id: 'c1', type: 'function', function: { name: 't', arguments: 'not json' } },
+        ],
+      },
+    ]);
+    expect((out[0]!.content as any[])[0].args).toEqual({});
   });
 });
 

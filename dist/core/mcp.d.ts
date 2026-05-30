@@ -38,6 +38,12 @@ export declare class MCPClient {
     private sendJson;
     private requestStdio;
     private healthStdio;
+    /**
+     * Call a tool on this server via tools/call (transport-agnostic). Returns the
+     * extracted text content, or a JSON-stringified fallback. Public so the
+     * manager doesn't reach into private transport methods.
+     */
+    callTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<string>;
     private initSse;
     private requestSse;
     private healthSse;

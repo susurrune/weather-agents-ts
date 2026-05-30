@@ -711,6 +711,77 @@ export class LLMClient {
 // against each provider. It maps our OpenAI-style messages/tool schemas to the
 // AI SDK's CoreMessage / jsonSchema tool shapes and back.
 
+function safeJsonObject(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
+  if (typeof raw === 'string') {
+    try {
+      const v = JSON.parse(raw);
+      return v && typeof v === 'object' ? v : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+/**
+ * Convert OpenAI-style messages (role + content + tool_calls/tool_call_id) into
+ * Vercel AI SDK CoreMessage[]. Assistant tool calls become `tool-call` parts;
+ * `role:'tool'` results become `tool-result` parts (toolName recovered from the
+ * matching preceding assistant tool_call id, which the SDK requires). Without
+ * this, multi-turn tool conversations are malformed for the SDK.
+ */
+export function toCoreMessages(messages: Array<Record<string, any>>): Array<Record<string, any>> {
+  const idToName = new Map<string, string>();
+  // First pass: map every tool_call id → toolName.
+  for (const m of messages) {
+    if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+      for (const tc of m.tool_calls) {
+        if (tc?.id && tc?.function?.name) idToName.set(tc.id, tc.function.name);
+      }
+    }
+  }
+
+  const out: Array<Record<string, any>> = [];
+  for (const m of messages) {
+    if (m.role === 'system' || m.role === 'user') {
+      out.push({ role: m.role, content: String(m.content ?? '') });
+    } else if (m.role === 'assistant') {
+      if (Array.isArray(m.tool_calls) && m.tool_calls.length) {
+        const parts: Array<Record<string, any>> = [];
+        if (m.content) parts.push({ type: 'text', text: String(m.content) });
+        for (const tc of m.tool_calls) {
+          parts.push({
+            type: 'tool-call',
+            toolCallId: tc.id,
+            toolName: tc.function?.name ?? 'unknown',
+            args: safeJsonObject(tc.function?.arguments),
+          });
+        }
+        out.push({ role: 'assistant', content: parts });
+      } else {
+        out.push({ role: 'assistant', content: String(m.content ?? '') });
+      }
+    } else if (m.role === 'tool') {
+      out.push({
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: m.tool_call_id,
+            toolName: idToName.get(m.tool_call_id) ?? m.name ?? 'unknown',
+            result: String(m.content ?? ''),
+          },
+        ],
+      });
+    } else {
+      // Unknown role — pass content through as a user message (defensive).
+      out.push({ role: 'user', content: String(m.content ?? '') });
+    }
+  }
+  return out;
+}
+
 export class AiSdkBackend implements CompletionBackend {
   private async makeModel(req: CompletionRequest): Promise<any> {
     const provider = req.provider ?? 'openai';
@@ -762,7 +833,7 @@ export class AiSdkBackend implements CompletionBackend {
     const model = await this.makeModel(req);
     const result = await generateText({
       model,
-      messages: req.messages as any,
+      messages: toCoreMessages(req.messages) as any,
       tools: await this.buildTools(req.tools),
       temperature: req.temperature,
       maxTokens: req.maxTokens,
@@ -788,7 +859,7 @@ export class AiSdkBackend implements CompletionBackend {
     const model = await this.makeModel(req);
     const result = streamText({
       model,
-      messages: req.messages as any,
+      messages: toCoreMessages(req.messages) as any,
       tools: await this.buildTools(req.tools),
       temperature: req.temperature,
       maxTokens: req.maxTokens,

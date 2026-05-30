@@ -392,16 +392,30 @@ async function _glob(pattern: string, directory = '.'): Promise<string> {
     };
     const rx = globToRegex(pattern);
     const results: string[] = [];
+    const seen = new Set<string>(); // guards against symlink cycles
     function scan(d: string) {
+      if (results.length >= 200) return;
+      let real: string;
+      try {
+        real = realpathSync.native(d);
+      } catch {
+        real = d;
+      }
+      if (seen.has(real)) return;
+      seen.add(real);
       try {
         const entries = readdirSync(d, { withFileTypes: true });
         for (const e of entries) {
           const full = join(d, e.name);
           if (rx.test(e.name)) results.push(full);
-          if (e.isDirectory() && !e.name.startsWith('.')) scan(full);
+          // Skip dot-dirs, node_modules and .git — same exclusions as grep,
+          // so a glob in a project root doesn't drown in dependency files.
+          if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
+            scan(full);
+          }
         }
       } catch {
-        /* skip */
+        /* skip unreadable dir */
       }
     }
     scan(dir);

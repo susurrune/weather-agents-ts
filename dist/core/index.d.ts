@@ -19,7 +19,7 @@ export { USER_CONFIG_DIR, CONFIG_DIR, AGENT_NAMES, loadConfig, invalidateCache, 
 export { Skill, SkillRegistry, globalSkillRegistry, type SkillInit, type SkillHandler, } from './skill.js';
 export { SemanticScorer, getScorer } from './semantic.js';
 export { Memory, type Message, type MessageDict } from './memory.js';
-export { LLMClient, AiSdkBackend, splitProvider, isAnthropicModel, estimateTokens, estimateCost, isTransientError, formatUserFacingError, FALLBACK_CHAINS, type LLMResponse, type StreamEvent, type StreamEventType, type ToolCall, type CompletionBackend, type CompletionRequest, type RawCompletion, type RawStreamChunk, } from './llm.js';
+export { LLMClient, AiSdkBackend, toCoreMessages, splitProvider, isAnthropicModel, estimateTokens, estimateCost, isTransientError, formatUserFacingError, FALLBACK_CHAINS, type LLMResponse, type StreamEvent, type StreamEventType, type ToolCall, type CompletionBackend, type CompletionRequest, type RawCompletion, type RawStreamChunk, } from './llm.js';
 export { BaseAgent, AgentState, TaskState, Task, type TaskInit, type TaskResult, type ChatStreamEvent, } from './agent.js';
 export { selectRelevantTools } from './toolRouter.js';
 export { detectBestWorkspaceRoot, resolveWorkspacePath, initWorkspace, formatBytes, } from './workspace.js';

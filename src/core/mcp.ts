@@ -207,6 +207,20 @@ export class MCPClient {
     return { healthy: true, details: 'ok' };
   }
 
+  /**
+   * Call a tool on this server via tools/call (transport-agnostic). Returns the
+   * extracted text content, or a JSON-stringified fallback. Public so the
+   * manager doesn't reach into private transport methods.
+   */
+  async callTool(name: string, args: Record<string, unknown>, timeout = 30.0): Promise<string> {
+    const resp = this.config.url
+      ? await this.requestSse('tools/call', { name, arguments: args }, timeout)
+      : await this.requestStdio('tools/call', { name, arguments: args }, timeout);
+    const text = resp?.result?.content?.[0]?.text;
+    if (typeof text === 'string') return text;
+    return JSON.stringify(resp?.result ?? resp?.error ?? 'no response');
+  }
+
   // ── SSE transport ────────────────────────────────────────────────────
 
   private async initSse(): Promise<any[]> {
@@ -364,27 +378,7 @@ export class MCPManager {
     const handler = client
       ? async (args: Record<string, any>): Promise<string> => {
           try {
-            const resp = client.config.url
-              ? await (client as any).requestSse(
-                  'tools/call',
-                  {
-                    name: toolInfo.name,
-                    arguments: args,
-                  },
-                  30.0,
-                )
-              : await (client as any).requestStdio(
-                  'tools/call',
-                  {
-                    name: toolInfo.name,
-                    arguments: args,
-                  },
-                  30.0,
-                );
-            if (resp?.result?.content?.[0]?.text) {
-              return resp.result.content[0].text;
-            }
-            return JSON.stringify(resp?.result ?? resp?.error ?? 'no response');
+            return await client.callTool(toolInfo.name, args);
           } catch (e: any) {
             return `Error calling MCP tool '${toolInfo.name}': ${e.message}`;
           }

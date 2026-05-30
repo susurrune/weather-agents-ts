@@ -137,6 +137,14 @@ export declare class LLMClient {
     }): AsyncGenerator<StreamEvent>;
     private streamEvent;
 }
+/**
+ * Convert OpenAI-style messages (role + content + tool_calls/tool_call_id) into
+ * Vercel AI SDK CoreMessage[]. Assistant tool calls become `tool-call` parts;
+ * `role:'tool'` results become `tool-result` parts (toolName recovered from the
+ * matching preceding assistant tool_call id, which the SDK requires). Without
+ * this, multi-turn tool conversations are malformed for the SDK.
+ */
+export declare function toCoreMessages(messages: Array<Record<string, any>>): Array<Record<string, any>>;
 export declare class AiSdkBackend implements CompletionBackend {
     private makeModel;
     private buildTools;

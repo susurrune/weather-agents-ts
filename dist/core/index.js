@@ -19,7 +19,7 @@ export { USER_CONFIG_DIR, CONFIG_DIR, AGENT_NAMES, loadConfig, invalidateCache, 
 export { Skill, SkillRegistry, globalSkillRegistry, } from './skill.js';
 export { SemanticScorer, getScorer } from './semantic.js';
 export { Memory } from './memory.js';
-export { LLMClient, AiSdkBackend, splitProvider, isAnthropicModel, estimateTokens, estimateCost, isTransientError, formatUserFacingError, FALLBACK_CHAINS, } from './llm.js';
+export { LLMClient, AiSdkBackend, toCoreMessages, splitProvider, isAnthropicModel, estimateTokens, estimateCost, isTransientError, formatUserFacingError, FALLBACK_CHAINS, } from './llm.js';
 export { BaseAgent, AgentState, TaskState, Task, } from './agent.js';
 export { selectRelevantTools } from './toolRouter.js';
 export { detectBestWorkspaceRoot, resolveWorkspacePath, initWorkspace, formatBytes, } from './workspace.js';
