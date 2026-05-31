@@ -14,6 +14,7 @@ import {
   USER_CONFIG_DIR,
   getProviderEnvVar,
 } from '../core/config.js';
+import { printWelcome, agentBanner } from './welcome.js';
 
 const VERSION = '1.0.1';
 
@@ -451,11 +452,8 @@ const REPL_HELP = `  Commands:
 
 async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
   let agent = startAgent;
-  const banner = (): void =>
-    console.log(
-      `\n${agent.emoji} ${agent.displayName} — ${agent.specialty}  (/help for commands)\n`,
-    );
-  banner();
+  const ws = typeof ctx.workspacePath === 'string' ? ctx.workspacePath : '';
+  printWelcome(ctx.config.llm.defaultModel, agent.name, ws);
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ' });
   rl.prompt();
   for await (const line of rl) {
@@ -472,7 +470,7 @@ async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
       console.log(REPL_HELP);
     } else if (lower === '/clear') {
       console.clear();
-      banner();
+      printWelcome(ctx.config.llm.defaultModel, agent.name, ws);
     } else if (lower === '/version') {
       console.log(`  Weather Agents v${VERSION}`);
     } else if (lower.startsWith('/') && lower.slice(1) in AGENT_CLASSES) {
@@ -481,7 +479,7 @@ async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
       if (next) {
         agent = next;
         await agent.init();
-        banner();
+        console.log(agentBanner(agent.name));
       }
     } else if (lower === '/status') {
       for (const [name, cls] of Object.entries(AGENT_CLASSES)) {
