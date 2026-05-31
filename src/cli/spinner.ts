@@ -82,13 +82,17 @@ export class Spinner {
     this.timer.unref?.();
   }
 
-  /** Stop and erase the spinner line (cursor returns to column 0). */
+  /** Stop and erase the spinner line (cursor returns to column 0).
+   *  Idempotent: only clears the line when the spinner was actually running,
+   *  so calling stop() again (e.g. on each content chunk) never erases the
+   *  text we've already streamed. */
   stop(): void {
+    const wasActive = this.timer !== null;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
-    if (this.tty) {
+    if (this.tty && wasActive) {
       process.stdout.write('\r\x1B[K\x1B[?25h'); // clear line + show cursor
     }
   }

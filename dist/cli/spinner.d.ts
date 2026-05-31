@@ -19,7 +19,10 @@ export declare class Spinner {
     /** Update the spinner caption (e.g. switch from "thinking" to a tool action). */
     setLabel(label: string): void;
     start(): void;
-    /** Stop and erase the spinner line (cursor returns to column 0). */
+    /** Stop and erase the spinner line (cursor returns to column 0).
+     *  Idempotent: only clears the line when the spinner was actually running,
+     *  so calling stop() again (e.g. on each content chunk) never erases the
+     *  text we've already streamed. */
     stop(): void;
     private render;
 }
