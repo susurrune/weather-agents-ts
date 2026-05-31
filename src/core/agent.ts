@@ -112,6 +112,7 @@ export interface TaskResult {
 // Time-tag cache (shared across all instances, 30s TTL).
 let _timeTag: string | null = null;
 let _timeTagTs = 0;
+let _timeTagLang = '';
 
 // ── Tool call helpers (pre-compiled regexes + labels) ──────────────────────
 
@@ -583,12 +584,26 @@ export class BaseAgent {
     return prompt + wsBlock;
   }
 
+  // Current date/time injected into the runtime block so the model always
+  // knows "now" — rebuilt each turn (see rebuildSystemPrompt callers), with a
+  // 30s cache to avoid a clock call on rapid prompt rebuilds (skill toggles).
   private currentTimeTag(): string {
+    const lang = this.config.llm.language ?? 'zh';
     const now = Date.now() / 1000;
-    if (_timeTag !== null && now - _timeTagTs < 30) return _timeTag;
+    if (_timeTag !== null && _timeTagLang === lang && now - _timeTagTs < 30) return _timeTag;
     const d = new Date();
-    const tag = `Today is ${d.toISOString().slice(0, 10)}. Current time: ${d.toISOString().replace('T', ' ').slice(0, 19)}.`;
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+    const offMin = -d.getTimezoneOffset();
+    const off = `UTC${offMin >= 0 ? '+' : '-'}${pad(Math.floor(Math.abs(offMin) / 60))}:${pad(Math.abs(offMin) % 60)}`;
+    const tag =
+      lang === 'en'
+        ? `Current date/time: ${date} ${time} (${tz}, ${off}). Treat this as "now" for anything time-sensitive — do not rely on training-cutoff dates; call get_current_time for an exact reading.`
+        : `当前日期时间：${date} ${time}（${tz}，${off}）。涉及时效性的问题以此为"现在"，不要使用训练截止日期等过时信息；需要精确时间可调用 get_current_time。`;
     _timeTag = tag;
+    _timeTagLang = lang;
     _timeTagTs = now;
     return tag;
   }
@@ -617,7 +632,8 @@ export class BaseAgent {
     this.baseSystemPrompt = this.injectWorkspaceInfo(this.baseSystemPrompt);
     this.baseSystemPrompt = this.injectBehaviorRules(this.baseSystemPrompt);
     this.baseSystemPrompt = this.injectProgrammingWisdom(this.baseSystemPrompt);
-    this.baseSystemPrompt += '\n\n' + this.currentTimeTag();
+    // Time tag is added in runtimeIdentityBlock() (rebuilt each turn) so it
+    // stays fresh — not frozen into baseSystemPrompt at init.
     this.rebuildSystemPrompt();
   }
 
@@ -633,7 +649,8 @@ export class BaseAgent {
     this.baseSystemPrompt = this.injectWorkspaceInfo(this.baseSystemPrompt);
     this.baseSystemPrompt = this.injectBehaviorRules(this.baseSystemPrompt);
     this.baseSystemPrompt = this.injectProgrammingWisdom(this.baseSystemPrompt);
-    this.baseSystemPrompt += '\n\n' + this.currentTimeTag();
+    // Time tag is added in runtimeIdentityBlock() (rebuilt each turn) so it
+    // stays fresh — not frozen into baseSystemPrompt at init.
     this.rebuildSystemPrompt();
     this.tools = this.toolRegistry.getTools();
     this.loadSkills();
@@ -766,9 +783,10 @@ export class BaseAgent {
       /* pass */
     }
     const lang = this.config.llm.language ?? 'zh';
+    const t = this.currentTimeTag();
     if (lang === 'en')
-      return `\n\n## Runtime\nYou are the ${this.displayName} agent in Weather Agents, powered by the **${model}** language model. If the user asks what model you are, give them this exact model id verbatim — do NOT guess or claim to be a different model.`;
-    return `\n\n## 运行环境\n你是 Weather Agents 中的「${this.displayName}」智能体，底层语言模型为 **${model}**。如果用户问你是什么模型，直接告诉他们这个准确的 model id —— 不要猜测、不要冒充其他模型。`;
+      return `\n\n## Runtime\nYou are the ${this.displayName} agent in Weather Agents, powered by the **${model}** language model. If the user asks what model you are, give them this exact model id verbatim — do NOT guess or claim to be a different model.\n${t}`;
+    return `\n\n## 运行环境\n你是 Weather Agents 中的「${this.displayName}」智能体，底层语言模型为 **${model}**。如果用户问你是什么模型，直接告诉他们这个准确的 model id —— 不要猜测、不要冒充其他模型。\n${t}`;
   }
 
   private rebuildSystemPrompt(): void {
@@ -906,6 +924,7 @@ export class BaseAgent {
 
   private async chatImpl(message: string, onStatus: ((s: string) => void) | null): Promise<string> {
     await this.setState(AgentState.THINKING);
+    this.rebuildSystemPrompt(); // refresh the current-time tag for this turn
     this.memory.addMessage('user', message);
     if (this.shouldAutoCompact()) {
       try {
@@ -955,6 +974,7 @@ export class BaseAgent {
   ): AsyncGenerator<ChatStreamEvent> {
     const { autoActivated = [] } = opts;
     await this.setState(AgentState.THINKING);
+    this.rebuildSystemPrompt(); // refresh the current-time tag for this turn
     this.memory.addMessage('user', message);
     let assistantStored = false;
 

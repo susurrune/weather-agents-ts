@@ -562,30 +562,149 @@ async function _shellExec(command, timeout = 30, cwd = '') {
         return `[exit code: ${exit}]\n${truncate(String(stderr), 5000, 'stderr')}`;
     }
 }
-// ── Web search ────────────────────────────────────────────────────────────────
-async function _webSearch(query, numResults = 5) {
-    // Use DuckDuckGo Lite HTML (no API key needed).
-    try {
-        const u = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
-        const res = await fetch(u, {
-            signal: AbortSignal.timeout(15000),
-            headers: { 'User-Agent': 'WeatherAgents/1.0' },
-        });
-        const html = await res.text();
-        // Extract result snippets
-        const results = [];
-        const linkRx = /<a[^>]*class="result-link"[^>]*>([^<]+)<\/a>/gi;
-        const snippetRx = /<td class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
-        const links = [...html.matchAll(linkRx)].map((m) => m[1].trim());
-        const snippets = [...html.matchAll(snippetRx)].map((m) => m[1].replace(/<[^>]+>/g, '').trim());
-        for (let i = 0; i < Math.min(numResults, links.length, snippets.length); i++) {
-            results.push(`${links[i]}: ${snippets[i]?.slice(0, 200)}`);
+const SEARCH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const NAMED_ENTITIES = {
+    amp: '&',
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+    nbsp: ' ',
+    ensp: ' ',
+    emsp: ' ',
+    middot: '·',
+    hellip: '…',
+    mdash: '—',
+    ndash: '–',
+    ldquo: '“',
+    rdquo: '”',
+    lsquo: '‘',
+    rsquo: '’',
+};
+/** Decode HTML entities (named + decimal/hex numeric) in scraped result text. */
+export function decodeEntities(s) {
+    return s
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+        .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+        .replace(/&([a-zA-Z]+);/g, (m, name) => NAMED_ENTITIES[name] ?? m);
+}
+/** Parse DuckDuckGo HTML results (result__a / result__snippet), decoding the
+ *  `uddg=` redirect wrapper DDG puts around result URLs. */
+export function parseDdgHtml(html, max) {
+    const out = [];
+    const rx = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+    for (const m of html.matchAll(rx)) {
+        if (out.length >= max)
+            break;
+        let url = m[1] ?? '';
+        const title = decodeEntities((m[2] ?? '').replace(/<[^>]+>/g, '')).trim();
+        const snippet = decodeEntities((m[3] ?? '').replace(/<[^>]+>/g, '')).trim();
+        if (url.includes('uddg=')) {
+            try {
+                const qs = new URLSearchParams(url.split('?')[1] ?? '');
+                url = qs.get('uddg') ?? url;
+            }
+            catch {
+                /* keep raw url */
+            }
         }
-        return results.length ? results.join('\n') : 'No search results found.';
+        if (url.startsWith('//'))
+            url = 'https:' + url;
+        if (title)
+            out.push({ title, url, snippet });
     }
-    catch (e) {
-        return `Error searching web: ${e.message}`;
+    return out;
+}
+/** Parse Bing HTML results (b_algo blocks). Works where DuckDuckGo is blocked
+ *  (e.g. mainland China), so it's our fallback backend. */
+export function parseBingHtml(html, max) {
+    const out = [];
+    const blockRx = /<li class="b_algo"[^>]*>([\s\S]*?)<\/li>/gi;
+    for (const b of html.matchAll(blockRx)) {
+        if (out.length >= max)
+            break;
+        const block = b[1] ?? '';
+        const a = block.match(/<h2[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
+        if (!a)
+            continue;
+        const url = a[1] ?? '';
+        const title = decodeEntities((a[2] ?? '').replace(/<[^>]+>/g, '')).trim();
+        const p = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+        const snippet = p ? decodeEntities(p[1].replace(/<[^>]+>/g, '')).trim() : '';
+        if (title && url.startsWith('http'))
+            out.push({ title, url, snippet });
     }
+    return out;
+}
+async function _webSearch(query, numResults = 5) {
+    const max = Math.min(numResults, 10);
+    const errors = [];
+    // Backend chain: DuckDuckGo (best outside CN) → Bing (reachable inside CN).
+    // First non-empty result set wins; each backend has its own timeout so one
+    // blocked engine can't stall the whole call.
+    const backends = [
+        {
+            name: 'ddg-post',
+            run: async () => {
+                const res = await fetch('https://html.duckduckgo.com/html/', {
+                    method: 'POST',
+                    signal: AbortSignal.timeout(8000),
+                    headers: {
+                        'User-Agent': SEARCH_UA,
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `q=${encodeURIComponent(query)}`,
+                });
+                if (!res.ok)
+                    throw new Error(`HTTP ${res.status}`);
+                return parseDdgHtml(await res.text(), max);
+            },
+        },
+        {
+            name: 'bing',
+            run: async () => {
+                const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=en`, { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': SEARCH_UA } });
+                if (!res.ok)
+                    throw new Error(`HTTP ${res.status}`);
+                return parseBingHtml(await res.text(), max);
+            },
+        },
+    ];
+    for (const b of backends) {
+        try {
+            const results = await b.run();
+            if (results.length) {
+                const parts = [`Search results for: ${query}\n`];
+                results.forEach((r, i) => {
+                    parts.push(`${i + 1}. ${r.title}`);
+                    parts.push(`   ${r.url}`);
+                    if (r.snippet)
+                        parts.push(`   ${r.snippet.slice(0, 300)}`);
+                    parts.push('');
+                });
+                return parts.join('\n');
+            }
+            errors.push(`${b.name}: 0 results`);
+        }
+        catch (e) {
+            errors.push(`${b.name}: ${e.message}`);
+        }
+    }
+    return `No results found for '${query}' (${errors.join('; ')})`;
+}
+/** Current date/time across local + UTC, for the get_current_time tool. */
+function _currentTime() {
+    const d = new Date();
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+    const offMin = -d.getTimezoneOffset();
+    const pad = (n) => String(n).padStart(2, '0');
+    const off = `UTC${offMin >= 0 ? '+' : '-'}${pad(Math.floor(Math.abs(offMin) / 60))}:${pad(Math.abs(offMin) % 60)}`;
+    const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    return [
+        `local:    ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} (${weekday}, ${tz}, ${off})`,
+        `utc:      ${d.toISOString()}`,
+        `unix_ms:  ${d.getTime()}`,
+    ].join('\n');
 }
 async function _fetchWebPage(url, extractText = true) {
     const err = validateUrl(url);
@@ -790,7 +909,7 @@ export function registerBuiltinTools(reg) {
         }),
         new Tool({
             name: 'web_search',
-            description: 'Search the web via DuckDuckGo Lite.',
+            description: 'Search the web via DuckDuckGo (no API key needed).',
             parameters: [
                 { name: 'query', type: 'string', description: 'Search query', required: true },
                 {
@@ -802,6 +921,13 @@ export function registerBuiltinTools(reg) {
                 },
             ],
             handler: (a) => _webSearch(String(a.query), Number(a.num_results) || 5),
+            cacheable: false,
+        }),
+        new Tool({
+            name: 'get_current_time',
+            description: 'Get the current real-world date and time (local + UTC). Call this for anything time-sensitive instead of relying on training-cutoff knowledge.',
+            parameters: [],
+            handler: () => Promise.resolve(_currentTime()),
             cacheable: false,
         }),
         new Tool({
