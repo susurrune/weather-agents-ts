@@ -656,9 +656,12 @@ async function streamChat(agent, message) {
                 sp.stop();
                 if (writingContent)
                     process.stdout.write('\n');
-                const secs = ((Date.now() - t0) / 1000).toFixed(1);
-                if (tty)
-                    console.log(chalk.dim(`  ⏱ ${secs}s`));
+                // Whisper-quiet timing footer — monochrome, no emoji (the ⏱ glyph
+                // rendered as a misaligned colored double-width char). Hidden for
+                // sub-second replies where it's just noise.
+                const ms = Date.now() - t0;
+                if (tty && ms >= 1000)
+                    console.log(chalk.dim(`  ${(ms / 1000).toFixed(1)}s`));
             }
             else if (ev.type === 'truncated') {
                 sp.stop();
