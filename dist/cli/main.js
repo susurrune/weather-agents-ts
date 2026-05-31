@@ -26,7 +26,7 @@ program
     }
     await agent.init();
     if (!message) {
-        await interactiveRepl(agent);
+        await interactiveRepl(ctx, agent);
     }
     else {
         if (opts?.model) {
@@ -293,7 +293,7 @@ program
         const name = loadConfig().cli.defaultAgent || 'fog';
         const agent = ctx.agentMap[name] ?? ctx.agentMap.fog;
         await agent.init();
-        await interactiveRepl(agent);
+        await interactiveRepl(ctx, agent);
         await agent.close();
     }
     else {
@@ -389,42 +389,168 @@ async function runSetupWizard() {
     console.log(`  config saved to ${join(USER_CONFIG_DIR, 'config.yaml')}\n`);
 }
 // ── Interactive REPL (shared by `wa chat`, bare `wa`, and `wa init`) ───────
-async function interactiveRepl(agent) {
-    console.log(`${agent.emoji} ${agent.displayName} — ${agent.specialty}`);
-    console.log('Type your message, /model to switch, /sessions to list, /quit to exit.\n');
+const REPL_HELP = `  Commands:
+    /help /?              show this help
+    /fog /rain /frost     switch agent (also /snow /dew /fair)
+    /status               agent + model overview
+    /skills               list this agent's skills
+    /use <skill>          activate a skill
+    /task <goal>          run multi-agent orchestration
+    /cost [reset]         show (or reset) token usage + cost
+    /memory [clear]       memory status (or clear short-term)
+    /remember <k>=<v>     store a long-term fact
+    /recall [query]       list / search long-term facts
+    /forget <key>         delete a long-term fact
+    /model [name]         show or switch the default model
+    /models               list the model catalog
+    /sessions             list saved sessions
+    /clear                clear the screen
+    /version              show version
+    /quit /exit /q        leave`;
+async function interactiveRepl(ctx, startAgent) {
+    let agent = startAgent;
+    const banner = () => console.log(`\n${agent.emoji} ${agent.displayName} — ${agent.specialty}  (/help for commands)\n`);
+    banner();
     const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ' });
     rl.prompt();
     for await (const line of rl) {
-        const trimmed = line.trim();
-        if (!trimmed) {
+        const cmd = line.trim();
+        if (!cmd) {
             rl.prompt();
             continue;
         }
-        if (trimmed === '/quit' || trimmed === '/exit')
+        const lower = cmd.toLowerCase();
+        if (lower === '/quit' || lower === '/exit' || lower === '/q')
             break;
-        if (trimmed === '/sessions') {
+        if (lower === '/help' || lower === '/?') {
+            console.log(REPL_HELP);
+        }
+        else if (lower === '/clear') {
+            console.clear();
+            banner();
+        }
+        else if (lower === '/version') {
+            console.log(`  Weather Agents v${VERSION}`);
+        }
+        else if (lower.startsWith('/') && lower.slice(1) in AGENT_CLASSES) {
+            const target = lower.slice(1);
+            const next = ctx.agentMap[target];
+            if (next) {
+                agent = next;
+                await agent.init();
+                banner();
+            }
+        }
+        else if (lower === '/status') {
+            for (const [name, cls] of Object.entries(AGENT_CLASSES)) {
+                const c = cls;
+                const model = ctx.config.agents[name]?.model || ctx.config.llm.defaultModel;
+                console.log(`  ${c.agentEmoji} ${String(c.agentDisplayName).padEnd(6)} ${model}`);
+            }
+        }
+        else if (lower === '/skills') {
+            const skills = agent.getAvailableSkills();
+            if (!skills.length)
+                console.log('  (no skills)');
+            for (const s of skills) {
+                console.log(`  ${s.active ? '●' : '○'} ${s.name.padEnd(20)} ${s.description}`);
+            }
+        }
+        else if (lower.startsWith('/use ')) {
+            const name = cmd.slice(5).trim();
+            console.log(agent.activateSkill(name) ? `  ✓ activated ${name}` : `  ✗ unknown skill: ${name}`);
+        }
+        else if (lower.startsWith('/task ')) {
+            const goal = cmd.slice(6).trim();
+            if (goal) {
+                const { mode, result } = await orchestrateTask(ctx, goal);
+                console.log(`[mode: ${mode}]\n${result}`);
+            }
+        }
+        else if (lower === '/cost') {
+            console.log(`  total cost: $${ctx.llm.getTotalCost().toFixed(6)}`);
+            for (const [name, st] of Object.entries(ctx.llm.getUsageStats())) {
+                const s = st;
+                console.log(`    ${name.padEnd(10)} ${s.calls} calls  ${s.prompt_tokens}+${s.completion_tokens} tok`);
+            }
+        }
+        else if (lower === '/cost reset') {
+            ctx.llm.resetUsageStats();
+            console.log('  usage stats reset');
+        }
+        else if (lower === '/memory') {
+            for (const a of Object.values(ctx.agentMap)) {
+                const working = Object.keys(a.memory.working ?? {}).length;
+                console.log(`  ${a.emoji} ${a.displayName}  ${a.memory.shortTerm.length} short / ${working} working`);
+            }
+        }
+        else if (lower === '/memory clear') {
+            for (const a of Object.values(ctx.agentMap)) {
+                const removed = a.memory.shortTerm.filter((m) => m.role !== 'system').length;
+                await a.memory.clearShortTerm();
+                console.log(`  ✓ cleared ${a.emoji} ${a.displayName} (${removed} messages)`);
+            }
+        }
+        else if (lower.startsWith('/remember ')) {
+            const payload = cmd.slice(10).trim();
+            const eq = payload.indexOf('=');
+            if (eq < 0) {
+                console.log('  usage: /remember <key>=<value>');
+            }
+            else {
+                const key = payload.slice(0, eq).trim();
+                const value = payload.slice(eq + 1).trim();
+                if (key && value) {
+                    await agent.memory.remember(key, value, 'user_fact');
+                    console.log(`  + remembered ${key} = ${value}`);
+                }
+                else {
+                    console.log('  key and value cannot be empty');
+                }
+            }
+        }
+        else if (lower === '/recall' || lower.startsWith('/recall ')) {
+            const query = cmd.slice(7).trim();
+            const facts = query
+                ? await agent.memory.recallForInjection(query, 10)
+                : await agent.memory.recall({ limit: 20 });
+            if (!facts.length)
+                console.log('  no facts stored yet — try /remember key=value');
+            for (const f of facts) {
+                const v = typeof f.value === 'string' ? f.value : JSON.stringify(f.value);
+                console.log(`  ${f.key}: ${v}`);
+            }
+        }
+        else if (lower.startsWith('/forget ')) {
+            const key = cmd.slice(8).trim();
+            await agent.memory.forget(key);
+            console.log(`  forgot ${key}`);
+        }
+        else if (lower === '/sessions') {
             const sessions = await agent.memory.listSessions();
             console.log(sessions
                 .map((s) => `  ${s.id.slice(0, 8)}… ${s.message_count}msgs ${s.preview || '(empty)'}`)
                 .join('\n') || '  No sessions.');
-            rl.prompt();
-            continue;
         }
-        if (trimmed === '/models') {
+        else if (lower === '/models') {
             console.log(formatModelsForDisplay(loadModelCatalog()));
-            rl.prompt();
-            continue;
         }
-        if (trimmed.startsWith('/model ')) {
-            const model = trimmed.slice(7).trim();
+        else if (lower === '/model') {
+            console.log(`  model: ${agent.config.llm.defaultModel}`);
+        }
+        else if (lower.startsWith('/model ')) {
+            const model = cmd.slice(7).trim();
             if (model) {
                 agent.config.llm.defaultModel = model;
-                console.log(`Model → ${model}`);
+                console.log(`  model → ${model}`);
             }
-            rl.prompt();
-            continue;
         }
-        await streamChat(agent, trimmed);
+        else if (cmd.startsWith('/')) {
+            console.log(`  unknown command: ${cmd}  (/help for the list)`);
+        }
+        else {
+            await streamChat(agent, cmd);
+        }
         rl.prompt();
     }
     rl.close();
@@ -481,7 +607,7 @@ program.action(async () => {
     const name = (loadConfig().cli.defaultAgent || 'fog').toLowerCase();
     const agent = ctx.agentMap[name] ?? ctx.agentMap.fog;
     await agent.init();
-    await interactiveRepl(agent);
+    await interactiveRepl(ctx, agent);
     await agent.close();
 });
 program.parse();
