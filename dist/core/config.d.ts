@@ -4,6 +4,7 @@ export declare const USER_CONFIG_DIR: string;
 export declare const AGENT_NAMES: readonly ["fog", "rain", "frost", "snow", "dew", "fair"];
 export type AgentName = (typeof AGENT_NAMES)[number];
 export declare const CONFIG_DIR: string;
+export declare function saveUserCfg(data: Record<string, any>): void;
 export interface ModelEntry {
     name: string;
     provider?: string;

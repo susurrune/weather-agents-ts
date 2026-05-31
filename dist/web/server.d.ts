@@ -1,12 +1,15 @@
-/** Voice WebSocket server — minimal but functional. Mirrors Python web/server.py. */
-import type { SystemContext } from '../core/factory.js';
-/**
- * Run a minimal voice WebSocket server. Clients send `{"type":"speech","text":"…"}`
- * JSON frames; the server streams the agent's response back via `{"type":"content","text":"…"}`
- * frames.
+/** Voice WebSocket server — mirrors Python web/server.py.
+ *
+ * Bridges a browser voice client (client.html, served as voice.html) to an
+ * agent's chatStream over a WebSocket. Each connection gets its own memory
+ * session; optional Doubao TTS streams synthesized audio back as base64 frames.
  */
-export declare function runVoiceServer(ctx: SystemContext, opts?: {
+import type { SystemContext } from '../core/factory.js';
+export interface VoiceServerOptions {
     host?: string;
     port?: number;
     agentName?: string;
-}): Promise<void>;
+    certFile?: string | null;
+    keyFile?: string | null;
+}
+export declare function runVoiceServer(ctx: SystemContext, opts?: VoiceServerOptions): Promise<void>;

@@ -71,7 +71,7 @@ function writeYaml(path: string, data: Record<string, any>): void {
   invalidateCache();
 }
 
-function saveUserCfg(data: Record<string, any>): void {
+export function saveUserCfg(data: Record<string, any>): void {
   const path = join(USER_CONFIG_DIR, 'config.yaml');
   const existing = loadYaml(path);
   deepMerge(existing, data);

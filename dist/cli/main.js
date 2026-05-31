@@ -157,20 +157,72 @@ program
     await agent.close();
 });
 // ── wa voice ──────────────────────────────────────────────────────────────
-program
-    .command('voice [agent]')
-    .description('Start voice WebSocket server')
-    .option('-p, --port <port>', 'Port', '8765')
-    .option('-H, --host <host>', 'Host', '0.0.0.0')
+const voiceCmd = program.command('voice').description('Voice chat server and TTS voice management');
+voiceCmd
+    .argument('[agent]', 'Agent to use for voice chat', 'fair')
+    .option('-p, --port <port>', 'Listen port', '8765')
+    .option('-H, --host <host>', 'Bind host (0.0.0.0 for remote access)', '0.0.0.0')
+    .option('-c, --cert-file <path>', 'TLS certificate (auto-generated if omitted for remote)')
+    .option('-k, --key-file <path>', 'TLS private key (required with --cert-file)')
     .action(async (agentName, opts) => {
     const name = (agentName || 'fair').toLowerCase();
+    if (!(name in AGENT_CLASSES)) {
+        console.error(`unknown agent '${name}'; available: ${Object.keys(AGENT_CLASSES).join(', ')}`);
+        process.exit(1);
+    }
+    if (Boolean(opts.certFile) !== Boolean(opts.keyFile)) {
+        console.error('--cert-file and --key-file must be used together');
+        process.exit(1);
+    }
+    const host = opts.host || '0.0.0.0';
     const ctx = createSystemContext();
     const { runVoiceServer } = await import('../web/server.js');
+    // Remote (non-loopback) access needs HTTPS for mic permission. Auto-generate
+    // a self-signed cert when binding broadly and none was supplied.
+    let certFile = opts.certFile ?? null;
+    let keyFile = opts.keyFile ?? null;
+    if (!certFile && host !== '127.0.0.1' && host !== 'localhost') {
+        const { ensureSelfSignedCert, detectAllLanIps } = await import('../web/certs.js');
+        [certFile, keyFile] = ensureSelfSignedCert(detectAllLanIps());
+    }
     await runVoiceServer(ctx, {
         agentName: name,
-        port: Number(opts?.port) || 8765,
-        host: opts?.host || '0.0.0.0',
+        port: Number(opts.port) || 8765,
+        host,
+        certFile,
+        keyFile,
     });
+});
+voiceCmd
+    .command('list')
+    .description('List available TTS voices')
+    .action(async () => {
+    const { VOICE_CATALOG } = await import('../web/tts.js');
+    const cfg = loadConfig();
+    if (!VOICE_CATALOG.length) {
+        console.log('暂无可用音色');
+        return;
+    }
+    console.log('\n  可用音色:\n');
+    for (const v of VOICE_CATALOG) {
+        console.log(`  ${v.name.padEnd(8)}  ${v.key.padEnd(20)}  ${v.desc}`);
+    }
+    console.log(`\n  当前音色: ${cfg.tts.voiceType}`);
+    console.log('  使用 wa voice select <名称> 切换音色\n');
+});
+voiceCmd
+    .command('select <name>')
+    .description("Select a TTS voice by name (see 'wa voice list')")
+    .action(async (name) => {
+    const { getVoiceByKey } = await import('../web/tts.js');
+    const { saveUserCfg } = await import('../core/config.js');
+    const entry = getVoiceByKey(name);
+    if (!entry) {
+        console.error(`未知音色: ${name}. 使用 wa voice list 查看可用音色`);
+        process.exit(1);
+    }
+    saveUserCfg({ tts: { voice_type: entry.voice_type } });
+    console.log(`已切换音色至: ${entry.name} (${entry.desc})`);
 });
 // ── Streaming helpers ────────────────────────────────────────────────────
 async function streamChat(agent, message) {
