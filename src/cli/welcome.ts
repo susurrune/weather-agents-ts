@@ -17,8 +17,17 @@ const ROLE: Record<string, string> = {
   fair: 'companion',
 };
 
-const INNER = 66; // panel inner width (between the borders)
-const COL = 11; // per-agent column width
+/** Compute the panel's inner width + per-agent column from the live terminal
+ *  width, so the welcome screen tracks the window instead of a fixed size. */
+function panelDims(): { inner: number; col: number } {
+  const cols = process.stdout.columns && process.stdout.columns > 0 ? process.stdout.columns : 80;
+  // Leave room for the "│ " / " │" border (4 cols); clamp to a readable band.
+  let inner = Math.max(44, Math.min(cols - 4, 100));
+  // 9 is the tightest column that still fits the longest label ("companion").
+  const col = Math.max(9, Math.floor(inner / 6));
+  inner = Math.max(inner, col * 6); // never let the 6-agent row overflow the box
+  return { inner, col };
+}
 
 /** Map a Rich color name (or hex) to a chalk styler. */
 function styler(color: string): ChalkInstance {
@@ -63,12 +72,12 @@ function center(text: string, width: number, vw = vwidth(text)): string {
 }
 
 /** Wrap one inner line of plain visual width `vw` in the rounded border. */
-function boxLine(rendered: string, vw: number): string {
-  const pad = Math.max(0, INNER - vw);
+function boxLine(inner: number, rendered: string, vw: number): string {
+  const pad = Math.max(0, inner - vw);
   return chalk.dim('│ ') + rendered + ' '.repeat(pad) + chalk.dim(' │');
 }
 
-function buildArt(): string[] {
+function buildArt(inner: number): string[] {
   const dim = chalk.dim;
   const star1 = '        ·  ✦  ·       · ✦  ·  ✦       ✦  ·  ✦  ·';
   const star2 = '     ✦        ✦    ✦         ✦    ·         ✦';
@@ -80,22 +89,24 @@ function buildArt(): string[] {
     chalk.bold.white('  W E A T H E R   A G E N T S  ') +
     chalk.cyan.bold('≈');
   return [
-    boxLine(dim(center(star1, INNER)), INNER),
-    boxLine(dim(center(star2, INNER)), INNER),
-    boxLine(center(titleRendered, INNER, vwidth(title)), INNER),
-    boxLine(dim(center(star3, INNER)), INNER),
-    boxLine(dim(center(star4, INNER)), INNER),
+    boxLine(inner, dim(center(star1, inner)), inner),
+    boxLine(inner, dim(center(star2, inner)), inner),
+    boxLine(inner, center(titleRendered, inner, vwidth(title)), inner),
+    boxLine(inner, dim(center(star3, inner)), inner),
+    boxLine(inner, dim(center(star4, inner)), inner),
   ];
 }
 
-/** Print the full welcome panel (start of interactive mode and on /clear). */
+/** Print the full welcome panel (start of interactive mode and on /clear).
+ *  Width tracks the live terminal size so the panel fits the window. */
 export function printWelcome(model: string, activeAgent: string, workspacePath = ''): void {
+  const { inner, col } = panelDims();
   const names = Object.keys(AGENT_CLASSES);
   const out: string[] = [];
-  out.push(chalk.dim('╭' + '─'.repeat(INNER + 2) + '╮'));
-  out.push(boxLine('', 0));
-  for (const line of buildArt()) out.push(line);
-  out.push(boxLine('', 0));
+  out.push(chalk.dim('╭' + '─'.repeat(inner + 2) + '╮'));
+  out.push(boxLine(inner, '', 0));
+  for (const line of buildArt(inner)) out.push(line);
+  out.push(boxLine(inner, '', 0));
 
   // Agent row: three stacked lines (name / role / status) across 6 columns.
   const line1: string[] = [];
@@ -111,18 +122,18 @@ export function printWelcome(model: string, activeAgent: string, workspacePath =
     const dot = active ? '●' : '○';
     const statusTxt = active ? 'active' : 'standby';
 
-    line1.push(center(paint.bold(display), COL, vwidth(display)));
-    line2.push(center(chalk.dim.italic(role), COL, vwidth(role)));
+    line1.push(center(paint.bold(display), col, vwidth(display)));
+    line2.push(center(chalk.dim.italic(role), col, vwidth(role)));
     const status = `${dot} ${statusTxt}`;
-    line3.push(center(active ? paint.bold(status) : chalk.dim(status), COL, vwidth(status)));
+    line3.push(center(active ? paint.bold(status) : chalk.dim(status), col, vwidth(status)));
   }
-  const rowWidth = COL * names.length;
-  const indent = Math.max(0, Math.floor((INNER - rowWidth) / 2));
+  const rowWidth = col * names.length;
+  const indent = Math.max(0, Math.floor((inner - rowWidth) / 2));
   const pad = ' '.repeat(indent);
-  out.push(boxLine(pad + line1.join(''), indent + rowWidth));
-  out.push(boxLine(pad + line2.join(''), indent + rowWidth));
-  out.push(boxLine(pad + line3.join(''), indent + rowWidth));
-  out.push(boxLine('', 0));
+  out.push(boxLine(inner, pad + line1.join(''), indent + rowWidth));
+  out.push(boxLine(inner, pad + line2.join(''), indent + rowWidth));
+  out.push(boxLine(inner, pad + line3.join(''), indent + rowWidth));
+  out.push(boxLine(inner, '', 0));
 
   // Meta: model · workspace
   const shortWs =
@@ -133,8 +144,8 @@ export function printWelcome(model: string, activeAgent: string, workspacePath =
     chalk.cyan.bold(model) +
     chalk.dim('   ·   workspace  ') +
     (shortWs ? chalk.white(shortWs) : chalk.dim('(none)'));
-  out.push(boxLine(center(metaRendered, INNER, vwidth(metaPlain)), INNER));
-  out.push(boxLine('', 0));
+  out.push(boxLine(inner, center(metaRendered, inner, vwidth(metaPlain)), inner));
+  out.push(boxLine(inner, '', 0));
 
   // Tip
   const tipPlain = 'Type  /  for commands  ·  /help  for reference';
@@ -144,10 +155,10 @@ export function printWelcome(model: string, activeAgent: string, workspacePath =
     chalk.dim('  for commands  ·  ') +
     chalk.cyan.bold('/help') +
     chalk.dim('  for reference');
-  out.push(boxLine(center(tipRendered, INNER, vwidth(tipPlain)), INNER));
+  out.push(boxLine(inner, center(tipRendered, inner, vwidth(tipPlain)), inner));
 
-  out.push(boxLine('', 0));
-  out.push(chalk.dim('╰' + '─'.repeat(INNER + 2) + '╯'));
+  out.push(boxLine(inner, '', 0));
+  out.push(chalk.dim('╰' + '─'.repeat(inner + 2) + '╯'));
   console.log('\n' + out.join('\n') + '\n');
 }
 

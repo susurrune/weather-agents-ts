@@ -455,6 +455,22 @@ async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
   const ws = typeof ctx.workspacePath === 'string' ? ctx.workspacePath : '';
   printWelcome(ctx.config.llm.defaultModel, agent.name, ws);
   const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ' });
+
+  // Re-render the panel when the terminal is resized, so the UI tracks the
+  // window. Skipped while a response is streaming (would corrupt the output).
+  let streaming = false;
+  let resizeTimer: NodeJS.Timeout | null = null;
+  const onResize = (): void => {
+    if (streaming) return;
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      console.clear();
+      printWelcome(ctx.config.llm.defaultModel, agent.name, ws);
+      rl.prompt(true); // redraw prompt + any in-progress input
+    }, 120); // debounce drag-resize bursts
+  };
+  process.stdout.on('resize', onResize);
+
   rl.prompt();
   for await (const line of rl) {
     const cmd = line.trim();
@@ -579,10 +595,16 @@ async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
     } else if (cmd.startsWith('/')) {
       console.log(`  unknown command: ${cmd}  (/help for the list)`);
     } else {
-      await streamChat(agent, cmd);
+      streaming = true;
+      try {
+        await streamChat(agent, cmd);
+      } finally {
+        streaming = false;
+      }
     }
     rl.prompt();
   }
+  process.stdout.removeListener('resize', onResize);
   rl.close();
 }
 
