@@ -17,6 +17,7 @@ import {
 import chalk from 'chalk';
 import { printWelcome, agentBanner } from './welcome.js';
 import { Spinner } from './spinner.js';
+import { formatMarkdownLine } from './markdown.js';
 
 const VERSION = '1.0.1';
 
@@ -452,11 +453,48 @@ const REPL_HELP = `  Commands:
     /version              show version
     /quit /exit /q        leave`;
 
+const SLASH_COMMANDS = [
+  '/help',
+  '/fog',
+  '/rain',
+  '/frost',
+  '/snow',
+  '/dew',
+  '/fair',
+  '/status',
+  '/skills',
+  '/use ',
+  '/task ',
+  '/cost',
+  '/memory',
+  '/remember ',
+  '/recall',
+  '/forget ',
+  '/model',
+  '/models',
+  '/sessions',
+  '/clear',
+  '/version',
+  '/quit',
+];
+
+// Tab-completion for slash commands: `/` + Tab lists them, `/se` + Tab → /sessions.
+function slashCompleter(line: string): [string[], string] {
+  if (!line.startsWith('/')) return [[], line];
+  const hits = SLASH_COMMANDS.filter((c) => c.startsWith(line));
+  return [(hits.length ? hits : SLASH_COMMANDS).map((c) => c.trimEnd()), line];
+}
+
 async function interactiveRepl(ctx: any, startAgent: any): Promise<void> {
   let agent = startAgent;
   const ws = typeof ctx.workspacePath === 'string' ? ctx.workspacePath : '';
   printWelcome(ctx.config.llm.defaultModel, agent.name, ws);
-  const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: '> ' });
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: '> ',
+    completer: slashCompleter,
+  });
 
   // Re-render the panel when the terminal is resized, so the UI tracks the
   // window. Skipped while a response is streaming (would corrupt the output).
@@ -637,15 +675,34 @@ async function streamChat(agent: any, message: string): Promise<void> {
   const tty = Boolean(process.stdout.isTTY);
   sp.start();
 
-  let headerShown = false; // printed the "emoji Name" prefix once this turn
-  let writingContent = false; // mid content line (so we know to break before tools)
+  let headerShown = false; // printed the "emoji Name" header once this turn
+  let lineBuf = ''; // partial content line awaiting a newline before rendering
   const t0 = Date.now();
 
+  // On a TTY we render Markdown → ANSI line-by-line (bold/lists/headings styled);
+  // on a pipe we emit raw text so captured output stays plain and faithful.
   const ensureHeader = (): void => {
     sp.stop();
     if (!headerShown) {
-      process.stdout.write(`\n${agent.emoji} ${chalk.bold(agent.displayName)}  `);
+      process.stdout.write(`\n${agent.emoji} ${chalk.bold(agent.displayName)}\n`);
       headerShown = true;
+    }
+  };
+  const printLine = (line: string): void => {
+    process.stdout.write((tty ? formatMarkdownLine(line) : line) + '\n');
+  };
+  const feed = (text: string): void => {
+    lineBuf += text;
+    let nl: number;
+    while ((nl = lineBuf.indexOf('\n')) !== -1) {
+      printLine(lineBuf.slice(0, nl));
+      lineBuf = lineBuf.slice(nl + 1);
+    }
+  };
+  const flush = (): void => {
+    if (lineBuf) {
+      printLine(lineBuf);
+      lineBuf = '';
     }
   };
 
@@ -655,8 +712,7 @@ async function streamChat(agent: any, message: string): Promise<void> {
         const t = ev.text ?? '';
         if (!t) continue;
         ensureHeader();
-        process.stdout.write(t);
-        writingContent = true;
+        feed(t);
       } else if (ev.type === 'reasoning') {
         sp.setLabel(`${agent.emoji} ${agent.displayName} 推理中…`);
         if (process.env.WA_VERBOSE === '1' && ev.text) {
@@ -664,10 +720,7 @@ async function streamChat(agent: any, message: string): Promise<void> {
           process.stdout.write(chalk.dim(ev.text));
         }
       } else if (ev.type === 'tool_status') {
-        if (writingContent) {
-          process.stdout.write('\n');
-          writingContent = false;
-        }
+        flush();
         const label = ev.label ?? ev.toolName ?? '调用工具';
         sp.setLabel(label);
         if (!sp.active) sp.start();
@@ -681,18 +734,19 @@ async function streamChat(agent: any, message: string): Promise<void> {
         headerShown = false;
       } else if (ev.type === 'done') {
         sp.stop();
-        if (writingContent) process.stdout.write('\n');
-        // Whisper-quiet timing footer — monochrome, no emoji (the ⏱ glyph
-        // rendered as a misaligned colored double-width char). Hidden for
+        flush();
+        // Whisper-quiet timing footer — monochrome, no emoji. Hidden for
         // sub-second replies where it's just noise.
         const ms = Date.now() - t0;
         if (tty && ms >= 1000) console.log(chalk.dim(`  ${(ms / 1000).toFixed(1)}s`));
       } else if (ev.type === 'truncated') {
+        flush();
         sp.stop();
         console.log(`\n  ${chalk.yellow('⚠')} ${ev.reason ?? 'truncated'}`);
       }
     }
   } finally {
+    flush();
     sp.stop();
   }
 }
