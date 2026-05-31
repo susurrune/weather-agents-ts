@@ -5,7 +5,9 @@ import { createInterface } from 'node:readline';
 import { program } from 'commander';
 import { createSystemContext, AGENT_CLASSES, orchestrateTask } from '../core/factory.js';
 import { loadModelCatalog, formatModelsForDisplay, setConfig, deleteConfig, loadConfig, USER_CONFIG_DIR, getProviderEnvVar, } from '../core/config.js';
+import chalk from 'chalk';
 import { printWelcome, agentBanner } from './welcome.js';
+import { Spinner } from './spinner.js';
 const VERSION = '1.0.1';
 program
     .name('wa')
@@ -600,28 +602,72 @@ function ask(question, hidden = false) {
 }
 // ── Streaming helpers ────────────────────────────────────────────────────
 async function streamChat(agent, message) {
-    for await (const ev of agent.chatStream(message)) {
-        if (ev.type === 'content') {
-            process.stdout.write(ev.text);
+    const thinking = `${agent.emoji} ${agent.displayName} 思考中…`;
+    const sp = new Spinner(agent.name, thinking);
+    const tty = Boolean(process.stdout.isTTY);
+    sp.start();
+    let headerShown = false; // printed the "emoji Name" prefix once this turn
+    let writingContent = false; // mid content line (so we know to break before tools)
+    const t0 = Date.now();
+    const ensureHeader = () => {
+        sp.stop();
+        if (!headerShown) {
+            process.stdout.write(`\n${agent.emoji} ${chalk.bold(agent.displayName)}  `);
+            headerShown = true;
         }
-        else if (ev.type === 'tool_status') {
-            process.stdout.write(`\n  ${ev.label}...`);
+    };
+    try {
+        for await (const ev of agent.chatStream(message)) {
+            if (ev.type === 'content') {
+                const t = ev.text ?? '';
+                if (!t)
+                    continue;
+                ensureHeader();
+                process.stdout.write(t);
+                writingContent = true;
+            }
+            else if (ev.type === 'reasoning') {
+                sp.setLabel(`${agent.emoji} ${agent.displayName} 推理中…`);
+                if (process.env.WA_VERBOSE === '1' && ev.text) {
+                    sp.stop();
+                    process.stdout.write(chalk.dim(ev.text));
+                }
+            }
+            else if (ev.type === 'tool_status') {
+                if (writingContent) {
+                    process.stdout.write('\n');
+                    writingContent = false;
+                }
+                const label = ev.label ?? ev.toolName ?? '调用工具';
+                sp.setLabel(label);
+                if (!sp.active)
+                    sp.start();
+            }
+            else if (ev.type === 'tool_done') {
+                sp.stop();
+                const icon = ev.success ? chalk.green('✓') : chalk.red('✗');
+                console.log(`  ${icon} ${chalk.dim(ev.label ?? ev.toolName ?? 'tool')}`);
+                // Model will continue after the tool — show the thinking spinner again.
+                sp.setLabel(thinking);
+                sp.start();
+                headerShown = false;
+            }
+            else if (ev.type === 'done') {
+                sp.stop();
+                if (writingContent)
+                    process.stdout.write('\n');
+                const secs = ((Date.now() - t0) / 1000).toFixed(1);
+                if (tty)
+                    console.log(chalk.dim(`  ⏱ ${secs}s`));
+            }
+            else if (ev.type === 'truncated') {
+                sp.stop();
+                console.log(`\n  ${chalk.yellow('⚠')} ${ev.reason ?? 'truncated'}`);
+            }
         }
-        else if (ev.type === 'tool_done') {
-            const icon = ev.success ? '✓' : '✗';
-            process.stdout.write(` ${icon}`);
-        }
-        else if (ev.type === 'done') {
-            process.stdout.write('\n');
-        }
-        else if (ev.type === 'reasoning') {
-            // reasoning content is hidden by default; show dimly if VERBOSE=1
-            if (process.env.WA_VERBOSE === '1')
-                process.stdout.write(`\x1b[2m${ev.text}\x1b[0m`);
-        }
-        else if (ev.type === 'truncated') {
-            process.stdout.write(`\n  ⚠ ${ev.reason}\n`);
-        }
+    }
+    finally {
+        sp.stop();
     }
 }
 // Bare `wa` (no subcommand) → drop into interactive chat with the default agent,
