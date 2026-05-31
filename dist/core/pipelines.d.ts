@@ -16,3 +16,13 @@ export interface Pipeline {
 export declare function matchPipeline(goal: string): Pipeline | null;
 /** Materialize a pipeline into runtime Task objects (full DAG). */
 export declare function buildTasksFromPipeline(pipeline: Pipeline, goal: string): Task[];
+/** For CLI / debug introspection. */
+export declare function listPipelines(): Array<{
+    name: string;
+    triggers: string[];
+    steps: Array<{
+        id: string;
+        agent: string;
+        dependsOn: string[];
+    }>;
+}>;

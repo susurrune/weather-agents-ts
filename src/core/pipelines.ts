@@ -37,40 +37,137 @@ const PIPELINES: Pipeline[] = [
       {
         id: '2',
         agent: 'rain',
-        descriptionTemplate: '基于 fog 的调研结果,撰写: {goal}',
+        descriptionTemplate: '基于第 1 步的调研结果撰写: {goal}',
         dependsOn: ['1'],
       },
     ],
     requireRegex: [],
   },
   {
-    name: 'write_then_review',
-    triggers: [
-      '写代码并审查',
-      'write and review',
-      '生成并审查',
-      '写后审查',
-      '先写再查',
-      'code then review',
-    ],
+    name: 'research_review_write',
+    triggers: ['调研审查后写', 'research review write', '先调研审查再写', '调研并审查后生成'],
     steps: [
-      { id: '1', agent: 'rain', descriptionTemplate: '生成: {goal}', dependsOn: [] },
+      { id: '1', agent: 'fog', descriptionTemplate: '调研: {goal}', dependsOn: [] },
       {
         id: '2',
         agent: 'frost',
-        descriptionTemplate: '审查 rain 的输出: {goal}',
+        descriptionTemplate: '审查第 1 步的调研结果,确认可行性',
+        dependsOn: ['1'],
+      },
+      {
+        id: '3',
+        agent: 'rain',
+        descriptionTemplate: '基于第 1 步调研和第 2 步审查意见撰写: {goal}',
+        dependsOn: ['2'],
+      },
+    ],
+    requireRegex: [],
+  },
+  {
+    name: 'implement_and_review',
+    triggers: ['实现并审查', '写完后审查', 'implement and review', '写代码并 review', '实现并审计'],
+    steps: [
+      { id: '1', agent: 'rain', descriptionTemplate: '实现: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'frost',
+        descriptionTemplate: '审查第 1 步的实现',
         dependsOn: ['1'],
       },
     ],
     requireRegex: [],
   },
   {
-    name: 'full_pipeline',
-    triggers: ['完整流程', 'full pipeline', '全流程', '一条龙', 'end to end'],
+    name: 'fix_and_verify',
+    triggers: ['修复并验证', 'fix and verify', '修复bug并验证', '修复后审查', 'bugfix review'],
     steps: [
-      { id: '1', agent: 'fog', descriptionTemplate: '调研: {goal}', dependsOn: [] },
-      { id: '2', agent: 'rain', descriptionTemplate: '基于调研生成: {goal}', dependsOn: ['1'] },
-      { id: '3', agent: 'frost', descriptionTemplate: '审查输出: {goal}', dependsOn: ['2'] },
+      { id: '1', agent: 'rain', descriptionTemplate: '修复: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'frost',
+        descriptionTemplate: '验证第 1 步的修复是否正确',
+        dependsOn: ['1'],
+      },
+    ],
+    requireRegex: [],
+  },
+  {
+    name: 'implement_test_deploy',
+    triggers: ['实现测试部署', '实现并部署', '写完测试再部署', 'implement test deploy'],
+    steps: [
+      { id: '1', agent: 'rain', descriptionTemplate: '实现: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'frost',
+        descriptionTemplate: '审查第 1 步的实现',
+        dependsOn: ['1'],
+      },
+      {
+        id: '3',
+        agent: 'dew',
+        descriptionTemplate: '部署第 1 步的实现',
+        dependsOn: ['2'],
+      },
+    ],
+    requireRegex: [],
+  },
+  {
+    name: 'design_implement_review_deploy',
+    triggers: [
+      '设计实现审查部署',
+      '设计开发测试上线',
+      'design implement review deploy',
+      '完整开发流程',
+    ],
+    steps: [
+      { id: '1', agent: 'fog', descriptionTemplate: '设计方案: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'rain',
+        descriptionTemplate: '根据第 1 步的设计实现: {goal}',
+        dependsOn: ['1'],
+      },
+      {
+        id: '3',
+        agent: 'frost',
+        descriptionTemplate: '审查第 2 步的实现代码',
+        dependsOn: ['2'],
+      },
+      {
+        id: '4',
+        agent: 'dew',
+        descriptionTemplate: '部署第 2 步的实现到生产环境',
+        dependsOn: ['3'],
+      },
+    ],
+    requireRegex: [],
+  },
+  // fair 是独立陪伴 agent,不参与任务编排,故无 research_then_fair pipeline。
+  {
+    name: 'investigate_report',
+    triggers: ['安全审计', 'security audit', '漏洞扫描', 'vulnerability scan', '安全检测'],
+    steps: [
+      { id: '1', agent: 'fog', descriptionTemplate: '安全调研: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'frost',
+        descriptionTemplate: '基于第 1 步的调研生成安全报告',
+        dependsOn: ['1'],
+      },
+    ],
+    requireRegex: [],
+  },
+  {
+    name: 'debug_and_deploy',
+    triggers: ['调试部署', 'debug and deploy', '修复并上线', 'hotfix deploy'],
+    steps: [
+      { id: '1', agent: 'rain', descriptionTemplate: '调试修复: {goal}', dependsOn: [] },
+      {
+        id: '2',
+        agent: 'dew',
+        descriptionTemplate: '部署第 1 步的修复',
+        dependsOn: ['1'],
+      },
     ],
     requireRegex: [],
   },
@@ -112,8 +209,22 @@ export function buildTasksFromPipeline(pipeline: Pipeline, goal: string): Task[]
         assignedTo: step.agent,
         parentId,
         dependsOn: [...step.dependsOn],
+        metadata: { goal, pipeline: pipeline.name },
       }),
     );
   }
   return tasks;
+}
+
+/** For CLI / debug introspection. */
+export function listPipelines(): Array<{
+  name: string;
+  triggers: string[];
+  steps: Array<{ id: string; agent: string; dependsOn: string[] }>;
+}> {
+  return PIPELINES.map((p) => ({
+    name: p.name,
+    triggers: [...p.triggers],
+    steps: p.steps.map((s) => ({ id: s.id, agent: s.agent, dependsOn: [...s.dependsOn] })),
+  }));
 }

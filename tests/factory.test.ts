@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { isThinContent, runOrchestration } from '../src/core/factory.js';
-import { matchPipeline } from '../src/core/pipelines.js';
+import { matchPipeline, buildTasksFromPipeline, listPipelines } from '../src/core/pipelines.js';
 import { BaseAgent, type TaskResult, Task } from '../src/core/agent.js';
 import { defaultAppConfig, type AppConfig, type MemoryConfig } from '../src/core/config.js';
 import { MessageBus } from '../src/core/bus.js';
@@ -155,5 +155,37 @@ describe('matchPipeline (integration with orchestration)', () => {
   });
   it('non-matching goal returns null', () => {
     expect(matchPipeline('随便聊聊')).toBeNull();
+  });
+
+  it('exposes all 9 predefined pipelines via listPipelines', () => {
+    const names = listPipelines().map((p) => p.name);
+    expect(names).toEqual([
+      'code_review',
+      'research_then_write',
+      'research_review_write',
+      'implement_and_review',
+      'fix_and_verify',
+      'implement_test_deploy',
+      'design_implement_review_deploy',
+      'investigate_report',
+      'debug_and_deploy',
+    ]);
+  });
+
+  it('matches multi-step pipelines by trigger', () => {
+    expect(matchPipeline('帮我修复并验证这个 bug')?.name).toBe('fix_and_verify');
+    expect(matchPipeline('research review write a report')?.name).toBe('research_review_write');
+    expect(matchPipeline('实现测试部署这个功能')?.name).toBe('implement_test_deploy');
+    expect(matchPipeline('调试部署热修复')?.name).toBe('debug_and_deploy');
+  });
+
+  it('buildTasksFromPipeline materializes the DAG with goal substitution + metadata', () => {
+    const p = matchPipeline('research and write 一篇报告')!;
+    const tasks = buildTasksFromPipeline(p, '一篇报告');
+    expect(tasks).toHaveLength(2);
+    expect(tasks[0]!.assignedTo).toBe('fog');
+    expect(tasks[0]!.description).toContain('一篇报告');
+    expect(tasks[1]!.dependsOn).toEqual(['1']);
+    expect(tasks[1]!.metadata.pipeline).toBe('research_then_write');
   });
 });

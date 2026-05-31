@@ -24,6 +24,7 @@ export { BaseAgent, AgentState, TaskState, Task, } from './agent.js';
 export { selectRelevantTools } from './toolRouter.js';
 export { detectBestWorkspaceRoot, resolveWorkspacePath, initWorkspace, formatBytes, } from './workspace.js';
 export { ratio, getCloseMatches } from './difflib.js';
+export { matchPipeline, buildTasksFromPipeline, listPipelines, } from './pipelines.js';
 export { registerBuiltinTools } from '../tools/builtin.js';
 export { registerAllSkills } from '../skills/loader.js';
 export { createSystemContext, orchestrateTask, runOrchestration, isThinContent, AGENT_CLASSES, } from './factory.js';
